@@ -1,0 +1,9 @@
+
+info commande utils
+
+arboré. -> tree -a -L 2
+
+test code python 1 -> python -m tabnanny menu.py
+test code python 2 compil' -> python -m py_compile menu.py
+
+connexion bdd avec user -> sudo -u postgres psql -d netatlas 

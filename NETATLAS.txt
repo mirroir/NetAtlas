@@ -1,0 +1,35 @@
+====================================================
+ _ _ _ _ _ _ _           
+| \ | | ___| |_ / \ | |_| | | | __ _ ___
+| \| |/ _ \ __| / _ \| __| | | |/ _` / __|
+| |\ | __/ |_ / ___ \ |_| |_| | (_| \__ \
+|_| \_|\___|\__| /_/ \_\__|\___/ \__,_|___/
+
+          by LeRadiS NoIr
+       
+====================================================
+
+Version : 1.0
+
+Objectif : NetAtlas est une plateforme d'apprentissage permettant de manipuler une base PostgreSQL, développer une API, pratiquer le SQL avancé, comprendre les relations entre données et tester la sécurisation d'une application dans un environnement de laboratoire.
+
+Architecture :
+
+Schéma général : 
+
+Liste des Tables : 
+
+Relations : 
+
+Choix Techniques : 
+
+Docker : 
+
+PostgreSQL : 
+
+FastAPI : 
+
+Sécurité : !!! anti-injection !!! 
+
+Roadmap :
+ 

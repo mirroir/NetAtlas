@@ -1,0 +1,25 @@
+========================================
+        NETATLAS - PLAN DE TESTS
+========================================
+
+TEST 001 - Recherche d'une ville existante
+Entrée : Saint-Pierre
+Résultat attendu : Saint-Pierre est trouvée.
+
+TEST 002 - Recherche d'une ville mal orthographiée
+Entrée : saint piere
+Résultat attendu : NetAtlas propose Saint-Pierre.
+
+TEST 003 - Sélection d'une suggestion
+Entrée : saint piere
+Choix : 1
+Résultat attendu : la recherche est relancée avec Saint-Pierre.
+
+TEST 004 - Recherche des lieux d'une ville existante
+Entrée : Saint-Pierre
+Résultat attendu : Marché de Saint-Pierre est affiché.
+
+TEST 005 - Données facultatives absentes
+Téléphone : NULL
+Site web : NULL
+Résultat attendu : "Non renseigné" est affiché.

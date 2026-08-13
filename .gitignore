@@ -1,0 +1,29 @@
+# Environnement Python
+.venv/
+venv/
+_pycache_/
+*.pyc
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+config/.env
+config/.env.*
+!.env.example
+!config/.env.example
+
+# Fichiers temporaires
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Sauvegardes / données SQL
+netatlas_test_seed.sql
+*.dump
+*.backup
+
+# IDE
+.vscode/
+.idea/
