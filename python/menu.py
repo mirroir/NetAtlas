@@ -1,4 +1,23 @@
-from database import get_categories, get_pays, get_villes, rechercher_ville, rechercher_lieux_par_ville, suggerer_villes
+try:
+    from .database import (
+        get_categories,
+        get_pays,
+        get_villes,
+        rechercher_ville,
+        rechercher_lieux_par_ville,
+        suggerer_villes,
+        rechercher_global,
+    )
+except ImportError:
+    from database import (
+        get_categories,
+        get_pays,
+        get_villes,
+        rechercher_ville,
+        rechercher_lieux_par_ville,
+        suggerer_villes,
+        rechercher_global,
+    )
 
 
 def afficher_categories():
@@ -193,6 +212,34 @@ def afficher_lieux_par_ville():
             print("\nAucune suggestion disponible.\n")
 
 
+
+def afficher_recherche_globale():
+    terme = input("\nTerme à rechercher : ").strip()
+
+    if not terme:
+        print("\nRecherche vide.\n")
+        return
+
+    resultats = rechercher_global(terme)
+
+    if not resultats:
+        print("\nAucun résultat trouvé.\n")
+        return
+
+    print("\n=== RÉSULTATS DE LA RECHERCHE GLOBALE ===\n")
+
+    for lieu, ville, categorie, adresse, telephone, site, score in resultats:
+        print(f"Lieu       : {lieu}")
+        print(f"Ville      : {ville}")
+        print(f"Catégorie  : {categorie}")
+        print(f"Adresse    : {adresse or 'Non renseignée'}")
+        print(f"Téléphone  : {telephone or 'Non renseigné'}")
+        print(f"Site web   : {site or 'Non renseigné'}")
+        print(f"Pertinence : {score:.2f}")
+        print()
+
+
+
 def afficher_menu():
     print("=" * 45)
     print("            NetAtlas -> Ver. 1")
@@ -204,7 +251,8 @@ def afficher_menu():
     print("3 - Voir les villes")
     print("4 - Rechercher une ville")
     print("5 - Rechercher les lieux d'une ville")
-    print("6 - Quitter")
+    print("6 - Recherche globale")
+    print("7 - Quitter")
     print()
 
 

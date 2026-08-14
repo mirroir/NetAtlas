@@ -1,4 +1,4 @@
-from menu import afficher_menu, afficher_categories, afficher_pays, afficher_villes, afficher_recherche_ville, afficher_lieux_par_ville
+from menu import afficher_menu, afficher_categories, afficher_pays, afficher_villes, afficher_recherche_ville, afficher_lieux_par_ville, afficher_recherche_globale
 
 
 
@@ -24,8 +24,12 @@ def main():
             afficher_lieux_par_ville()
             
         elif choix == "6":
-            print("\nA bientôt dans NetAtlas !")
+            afficher_recherche_globale()
+
+        elif choix == "7":
+            print("Nartrouv les gas !")
             break
+            
 
         else:
             print("\nChoix invalide. Essaie encore.\n")

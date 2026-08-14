@@ -215,3 +215,61 @@ def suggerer_villes(recherche):
     finally:
         connexion.close()
 
+
+
+def rechercher_global(terme):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        requete = """
+            SELECT
+                p.name,
+                v.name,
+                c.name,
+                p.address,
+                p.phone,
+                p.website,
+                GREATEST(
+                  similarity(p.name, %s),
+                  similarity(v.name, %s),
+                  similarity(c.name, %s)
+               ) AS score   
+            FROM places p
+            JOIN villes v ON p.ville_id = v.id
+            JOIN categories c ON p.category_id = c.id
+            WHERE
+                p.name ILIKE %s
+                OR v.name ILIKE %s
+                OR c.name ILIKE %s
+                OR similarity(p.name, %s) > 0.30
+                OR similarity(v.name, %s) > 0.30
+                OR similarity(c.name, %s) > 0.30 
+                ORDER BY score DESC, p.name
+                LIMIT 20;
+        """
+        motif = f"%{terme}%"
+
+        curseur.execute(
+                requete,
+                (
+                    terme, terme, terme,
+                    motif, motif, motif,
+                    terme, terme, terme
+                )
+             )        
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except Exception as erreur:
+        print(f"Erreur lors de la recherche globale : {erreur}")
+        return []
+
+    finally:
+        connexion.close()
+
+
