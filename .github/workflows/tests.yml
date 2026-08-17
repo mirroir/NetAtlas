@@ -1,0 +1,73 @@
+name: NetAtlas Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: netatlas_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      NETATLAS_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: netatlas_test
+      DB_USER: netatlas_ci_user
+      DB_PASSWORD: netatlas_ci_password
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Installer les dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest psycopg2-binary python-dotenv
+
+      - name: Préparer PostgreSQL
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d netatlas_test -f database/test_schema.sql
+          psql -h localhost -U postgres -d netatlas_test -f database/test_seed.sql
+
+          psql -h localhost -U postgres -d netatlas_test <<'SQL'
+          CREATE USER netatlas_ci_user WITH PASSWORD 'netatlas_ci_password';
+
+          GRANT CONNECT ON DATABASE netatlas_test TO netatlas_ci_user;
+          GRANT USAGE ON SCHEMA public TO netatlas_ci_user;
+
+          GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public
+          TO netatlas_ci_user;
+
+          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
+          TO netatlas_ci_user;
+          SQL
+
+      - name: Exécuter les tests
+        run: pytest -v
