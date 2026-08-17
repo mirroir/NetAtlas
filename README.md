@@ -33,19 +33,18 @@ NetAtlas est organisé en plusieurs couches afin de séparer les responsabilité
 
 ### Organisation simplifiée
 
-'''text
+```text
 NetAtlas/
-├── database/       # Scripts SQL et diagnostics
-├── python/         # Application Python
-│   ├── database.py # Accès PostgreSQL et requêtes
-│   ├── main.py     # Boucle principale
-│   └── menu.py     # Interface utilisateur
-├── scripts/        # Scripts de contrôle et d'automatisation
-├── tests/          # Tests automatisés
-├── .gitignore      # Protection des fichiers locaux et sensibles
-└── README.md       # Documentation publique du projet
-'''
-
+|-- database/        Scripts SQL et diagnostics
+|-- python/          Application Python
+|   |-- database.py  Accès PostgreSQL et requêtes
+|   |-- main.py      Boucle principale
+|   `-- menu.py      Interface utilisateur
+|-- scripts/         Scripts de contrôle et d'automatisation
+|-- tests/           Tests automatisés
+|-- .gitignore       Protection des fichiers locaux et sensibles
+`-- README.md        Documentation publique du projet
+```
 
 ## 🔎 Moteur de recherche
 
