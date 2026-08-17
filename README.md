@@ -33,7 +33,7 @@ NetAtlas est organisé en plusieurs couches afin de séparer les responsabilité
 
 ### Organisation simplifiée
 
-text
+'''text
 NetAtlas/
 ├── database/       # Scripts SQL et diagnostics
 ├── python/         # Application Python
@@ -44,6 +44,7 @@ NetAtlas/
 ├── tests/          # Tests automatisés
 ├── .gitignore      # Protection des fichiers locaux et sensibles
 └── README.md       # Documentation publique du projet
+'''
 
 
 ## 🔎 Moteur de recherche
@@ -80,9 +81,10 @@ Le projet dispose actuellement de :
 Un script de contrôle global permet également d'exécuter les vérifications
 principales du projet :
 
-bash
-./scripts/check_netatlas.sh
 
+````bash 
+./scripts/check_netatlas.sh
+````
 
 L'objectif est de disposer progressivement d'un contrôle reproductible permettant
 de détecter rapidement une régression avant une évolution ou un déploiement.
