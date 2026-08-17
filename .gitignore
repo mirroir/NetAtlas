@@ -27,3 +27,9 @@ netatlas_test_seed.sql
 # IDE
 .vscode/
 .idea/
+docs/info_commande/info_txt
+
+# Notes et fichiers locaux
+NETATLAS.txt
+docs/connexion_Python_Postgres.py
+docs/info_commande/info_txt
