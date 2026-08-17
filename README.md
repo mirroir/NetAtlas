@@ -1,5 +1,7 @@
 # 🌍 NetAtlas
 
+[![NetAtlas Tests](https://github.com/mirroir/NetAtlas/actions/workflows/tests.yml/badge.svg)](https://github.com/mirroir/NetAtlas/actions/workflows/tests.yml)
+
 > Laboratoire Python / PostgreSQL orienté recherche, tests automatisés,
 > qualité de service et pratiques DevOps.
 
