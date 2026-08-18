@@ -33,3 +33,8 @@ docs/info_commande/info_txt
 NETATLAS.txt
 docs/connexion_Python_Postgres.py
 docs/info_commande/info_txt
+
+# Coverage pytest
+.coverage
+**/.coverage
+htmlcov/
