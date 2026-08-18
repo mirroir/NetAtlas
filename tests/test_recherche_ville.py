@@ -74,5 +74,31 @@ def test_injection_ne_modifie_pas_les_donnees():
     assert avant == apres
 
 
+@pytest.mark.parametrize("entree", [
+    "Saint-Pierre",
+    "saint-pierre",
+    "SAINT-PIERRE",
+    "Saint",
+    "Pierre",
+])
+def test_recherche_ville_variantes_utilisateur(entree):
+    villes = rechercher_ville(entree)
+
+    assert isinstance(villes, list)
+    assert len(villes) > 0
+    assert any(ville[1] == "Saint-Pierre" for ville in villes)
+
+
+@pytest.mark.parametrize("entree", [
+    " Saint-Pierre",
+    "Saint-Pierre ",
+    "  Saint-Pierre  ",
+])
+def test_recherche_ville_avec_espaces(entree):
+    villes = rechercher_ville(entree)
+
+    assert isinstance(villes, list)
+    assert any(ville[1] == "Saint-Pierre" for ville in villes)
+
 
 

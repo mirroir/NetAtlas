@@ -90,6 +90,8 @@ def get_villes():
 
 
 def rechercher_ville(nom_ville):
+    nom_ville = nom_ville.strip()
+
     connexion = connexion_db()
 
     try:
