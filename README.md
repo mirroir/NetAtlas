@@ -5,13 +5,9 @@
 > Laboratoire Python / PostgreSQL orienté recherche, tests automatisés,
 > qualité de service et pratiques DevOps.
 
-NetAtlas est un projet personnel conçu comme un laboratoire technique permettant
-de mettre en pratique différentes compétences autour de l'exploitation,
-des bases de données et de l'automatisation.
+Le projet met en œuvre une application CLI connectée à PostgreSQL, un moteur de recherche multi-critères, une batterie de *38 tests automatisés avec pytest* et une *intégration continue avec GitHub Actions* permettant d'exécuter automatiquement les contrôles du projet.
 
-Le projet repose actuellement sur une application Python connectée à PostgreSQL
-et propose notamment un moteur de recherche global permettant d'interroger
-plusieurs types de données.
+L'objectif est de faire évoluer progressivement NetAtlas vers une chaîne complète inspirée des pratiques *OPS / DevOps* : développement, gestion des données, tests, contrôle qualité, automatisation, intégration continue et déploiement.
 
 ## 🎯 Objectifs du projet
 
@@ -86,6 +82,9 @@ principales du projet :
 ````bash 
 ./scripts/check_netatlas.sh
 ````
+Les contrôles sont également intégrés à *GitHub Actions* afin d'exécuter automatiquement la chaîne de tests dans un environnement CI à chaque évolution du projet.
+
+Le badge affiché en haut de ce README permet de visualiser directement l'état de la dernière exécution de la CI.
 
 L'objectif est de disposer progressivement d'un contrôle reproductible permettant
 de détecter rapidement une régression avant une évolution ou un déploiement.
@@ -111,15 +110,21 @@ NetAtlas est également utilisé comme support d'apprentissage pour faire évolu
 une application vers une approche plus proche des pratiques d'exploitation
 et de production.
 
-Les prochaines évolutions visent notamment :
+La démarche DevOps de NetAtlas s'appuie désormais sur :
 
-- l'automatisation des contrôles
-- l'intégration continue
-- la gestion des versions avec Git
-- la mise en place d'une chaîne CI/CD
-- l'expérimentation avec GitLab et Jenkins
+- la gestion des versions avec *Git*
+- l'automatisation des contrôles avec *Bash / Shell*
+- les tests automatisés avec *pytest*
+- l'intégration continue avec *GitHub Actions*
+- le contrôle de l'état de la CI via le badge du projet
+
+Les prochaines évolutions viseront notamment :
+
+- l'évolution de la chaîne *CI/CD*
+- l'expérimentation avec *GitLab et Jenkins*
 - le déploiement d'une interface Web
-- l'amélioration de la supervision et de la qualité de service
+- l'ajout de mécanismes de supervision
+- le renforcement continu de la sécurité et de la qualité de service
 
 ## 🛠️ Technologies
 
@@ -146,6 +151,8 @@ La version actuelle comprend notamment :
 - une recherche tolérante avec pg_trgm
 - une batterie de tests automatisés
 - un script de contrôle global
+- une intégration continue opérationnelle avec *GitHub Actions*
+- l'exécution automatisée des *38 tests* dans la CI
 - un dépôt Git public sécurisé
 
 ## 🗺️ Roadmap
@@ -153,12 +160,12 @@ La version actuelle comprend notamment :
 Les prochaines étapes prévues sont :
 
 1. Consolider la documentation technique
-2. Automatiser davantage les tests
-3. Mettre en place une première chaîne CI/CD
-4. Expérimenter GitLab et Jenkins
+2. Étendre progressivement la couverture des tests automatisés
+3. Faire évoluer la CI GitHub Actions vers une chaîne CI/CD complète
+4. Expérimenter une chaîne DevOps avec GitLab et Jenkins
 5. Créer une interface Web pour NetAtlas
-6. Ajouter des mécanismes de supervision
-7. Continuer à renforcer les contrôles de sécurité
+6. Ajouter des mécanismes de supervision et d'observabilité
+7. Continuer à renforcer les contrôles de sécurité et de qualité de service
 
 ---
 
