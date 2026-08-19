@@ -3,20 +3,20 @@ try:
         get_categories,
         get_pays,
         get_villes,
-        rechercher_ville,
-        rechercher_lieux_par_ville,
-        suggerer_villes,
         rechercher_global,
+        rechercher_lieux_par_ville,
+        rechercher_ville,
+        suggerer_villes,
     )
 except ImportError:
     from database import (
         get_categories,
         get_pays,
         get_villes,
-        rechercher_ville,
-        rechercher_lieux_par_ville,
-        suggerer_villes,
         rechercher_global,
+        rechercher_lieux_par_ville,
+        rechercher_ville,
+        suggerer_villes,
     )
 
 

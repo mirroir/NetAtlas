@@ -1,4 +1,5 @@
 import os
+
 import psycopg
 from dotenv import load_dotenv
 
@@ -119,7 +120,7 @@ def rechercher_ville(nom_ville):
 
         return villes
 
-    except Exception as erreur:
+    except psycopg.Error as erreur:
         print(f"Erreur lors de la recherche de la ville : {erreur}")
         return []
 
@@ -154,7 +155,7 @@ def get_pays():
 
         return pays
 
-    except Exception as erreur:
+    except psycopg.Error as erreur:
         print(f"Erreur lors de la récupération des pays : {erreur}")
         return []
 
@@ -188,7 +189,7 @@ def rechercher_lieux_par_ville(nom_ville):
 
         return lieux
 
-    except Exception as erreur:
+    except psycopg.Error as erreur:
         print(f"Erreur lors de la recherche des lieux : {erreur}")
         return []
 
@@ -267,7 +268,7 @@ def rechercher_global(terme):
 
         return resultats
 
-    except Exception as erreur:
+    except psycopg.Error as erreur:
         print(f"Erreur lors de la recherche globale : {erreur}")
         return []
 

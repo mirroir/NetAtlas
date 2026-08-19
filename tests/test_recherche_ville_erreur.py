@@ -1,14 +1,11 @@
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent / "python"))
+import psycopg
 
 import database
 
 
 class FauxCurseur:
     def execute(self, *args, **kwargs):
-        raise Exception("Erreur SQL simulée")
+        raise psycopg.Error("Erreur SQL simulée")
 
 
 class FausseConnexion:

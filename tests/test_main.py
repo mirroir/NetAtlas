@@ -1,6 +1,7 @@
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
 
 sys.path.append(str(Path(__file__).parent.parent / "python"))
 

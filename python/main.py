@@ -1,5 +1,12 @@
-from menu import afficher_menu, afficher_categories, afficher_pays, afficher_villes, afficher_recherche_ville, afficher_lieux_par_ville, afficher_recherche_globale
-
+from menu import (
+    afficher_categories,
+    afficher_lieux_par_ville,
+    afficher_menu,
+    afficher_pays,
+    afficher_recherche_globale,
+    afficher_recherche_ville,
+    afficher_villes,
+)
 
 
 def main():

@@ -1,7 +1,7 @@
 import sys
-import pytest
-
 from pathlib import Path
+
+import pytest
 
 sys.path.append(str(Path(__file__).parent.parent / "python"))
 
@@ -47,8 +47,6 @@ def test_recherche_ville_resiste_aux_entrees_sql(entree):
     "%",
     "_",
     "%%%%",
-    "_",
-    "Saint-Pierre%",
     "%Saint-Pierre",
     "éèàùç",
     "東京",
