@@ -47,7 +47,7 @@ jobs:
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip
-          pip install pytest "psycopg[binary]" python-dotenv pytest-cov
+          pip install pytest "psycopg[binary]" python-dotenv pytest-cov ruff
 
       - name: Préparer PostgreSQL
         env:
@@ -68,6 +68,9 @@ jobs:
           GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
           TO netatlas_ci_user;
           SQL
+
+      - name: Vérifier la qualité du code avec Ruff
+        run: ruff check .
 
       - name: Exécuter les tests
         run: pytest -v --cov=python --cov-report=term-missing --cov-fail-under=100
