@@ -276,3 +276,43 @@ def rechercher_global(terme):
         connexion.close()
 
 
+def get_place_details(place_id):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        requete = """
+            SELECT
+                p.id,
+                p.name,
+                p.description,
+                p.address,
+                p.latitude,
+                p.longitude,
+                p.phone,
+                p.email,
+                p.website,
+                p.is_active,
+                v.name AS ville,
+                c.name AS categorie
+            FROM places p
+            JOIN villes v ON p.ville_id = v.id
+            JOIN categories c ON p.category_id = c.id
+            WHERE p.id = %s;
+        """
+
+        curseur.execute(requete, (place_id,))
+        place = curseur.fetchone()
+        curseur.close()
+
+        return place
+
+    except psycopg.Error as erreur:
+        print(f"Erreur lors de la récupération du lieu : {erreur}")
+        return None
+
+    finally:
+        connexion.close()
+
+

@@ -2,6 +2,7 @@ try:
     from .database import (
         get_categories,
         get_pays,
+        get_place_details,
         get_villes,
         rechercher_global,
         rechercher_lieux_par_ville,
@@ -12,6 +13,7 @@ except ImportError:
     from database import (
         get_categories,
         get_pays,
+        get_place_details,
         get_villes,
         rechercher_global,
         rechercher_lieux_par_ville,
@@ -239,6 +241,51 @@ def afficher_recherche_globale():
         print()
 
 
+def afficher_detail_lieu():
+    """Affiche les informations détaillées d'un lieu."""
+
+    try:
+        place_id = int(input("\nIdentifiant du lieu : ").strip())
+    except ValueError:
+        print("\nIdentifiant invalide.\n")
+        return
+
+    place = get_place_details(place_id)
+
+    if place is None:
+        print("\nAucun lieu trouvé avec cet identifiant.\n")
+        return
+
+    (
+        identifiant,
+        nom,
+        description,
+        adresse,
+        latitude,
+        longitude,
+        telephone,
+        email,
+        site,
+        actif,
+        ville,
+        categorie,
+    ) = place
+
+    print("\n=== DÉTAIL DU LIEU ===\n")
+    print(f"Identifiant : {identifiant}")
+    print(f"Nom         : {nom}")
+    print(f"Catégorie   : {categorie}")
+    print(f"Ville       : {ville}")
+    print(f"Description : {description or 'Non renseignée'}")
+    print(f"Adresse     : {adresse or 'Non renseignée'}")
+    print(f"Latitude    : {latitude or 'Non renseignée'}")
+    print(f"Longitude   : {longitude or 'Non renseignée'}")
+    print(f"Téléphone   : {telephone or 'Non renseigné'}")
+    print(f"Email       : {email or 'Non renseigné'}")
+    print(f"Site web    : {site or 'Non renseigné'}")
+    print(f"Actif       : {'Oui' if actif else 'Non'}")
+    print()
+
 
 def afficher_menu():
     print("=" * 45)
@@ -252,7 +299,8 @@ def afficher_menu():
     print("4 - Rechercher une ville")
     print("5 - Rechercher les lieux d'une ville")
     print("6 - Recherche globale")
-    print("7 - Quitter")
+    print("7 - Afficher les détails d'un lieu")
+    print("8 - Quitter")
     print()
 
 

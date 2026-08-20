@@ -1,5 +1,6 @@
 from menu import (
     afficher_categories,
+    afficher_detail_lieu,
     afficher_lieux_par_ville,
     afficher_menu,
     afficher_pays,
@@ -34,7 +35,10 @@ def main():
             afficher_recherche_globale()
 
         elif choix == "7":
-            print("Nartrouv les gas !")
+            afficher_detail_lieu()
+
+        elif choix == "8":
+            print("Au revoir !")
             break
             
 
