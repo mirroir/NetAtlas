@@ -2,13 +2,13 @@ from database import get_place_details
 
 
 def test_get_place_details_retourne_un_lieu():
-    place = get_place_details(4)
+    place = get_place_details(1)
 
     assert place is not None
-    assert place[0] == 4
+    assert place[0] == 1
     assert place[1] == "Marché de Saint-Pierre"
     assert place[10] == "Saint-Pierre"
-    assert place[11] == "Agriculture"
+    assert place[11] == "Marché"
 
 def test_get_place_details_id_inexistant():
     place = get_place_details(9999)
