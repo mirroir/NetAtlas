@@ -58,3 +58,19 @@ VALUES
         NULL,
         TRUE
     );
+
+-- Tags utilisés par les tests
+INSERT INTO tags (id, name)
+VALUES
+    (1, 'Marché forain'),
+    (2, 'Producteurs locaux'),
+    (3, 'Produits frais');
+
+-- Association des tags au lieu de test
+INSERT INTO place_tags (place_id, tag_id)
+VALUES
+    (1, 1),
+    (1, 2),
+    (1, 3);
+
+
