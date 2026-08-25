@@ -211,10 +211,14 @@ def test_afficher_recherche_ville_choix_invalide(monkeypatch, capsys):
 
 
 def test_afficher_lieux_par_ville_trouves(monkeypatch, capsys):
-    monkeypatch.setattr("builtins.input", lambda _: "Saint-Pierre")
+    
+    choix = iter (["Saint-Pierre", ""])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
     donnees = [
         (
+            1,
             "Saint-Pierre",
             "Agriculture",
             "Ferme NetAtlas",
@@ -236,10 +240,7 @@ def test_afficher_lieux_par_ville_trouves(monkeypatch, capsys):
 
     assert "Lieux trouvés dans NetAtlas" in sortie
     assert "Saint-Pierre" in sortie
-    assert "Agriculture" in sortie
     assert "Ferme NetAtlas" in sortie
-    assert "10 rue Exemple" in sortie
-    assert "0262123456" in sortie
 
 
 def test_afficher_lieux_par_ville_suggestions_annulees(monkeypatch, capsys):
@@ -267,7 +268,7 @@ def test_afficher_lieux_par_ville_suggestions_annulees(monkeypatch, capsys):
 
 
 def test_afficher_lieux_par_ville_suggestion_selectionnee(monkeypatch, capsys):
-    choix = iter(["Saint-Piere", "1"])
+    choix = iter(["Saint-Piere","1",""])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -281,6 +282,7 @@ def test_afficher_lieux_par_ville_suggestion_selectionnee(monkeypatch, capsys):
 
         return [
             (
+                1,
                 "Saint-Pierre",
                 "Agriculture",
                 "Ferme NetAtlas",
@@ -310,7 +312,6 @@ def test_afficher_lieux_par_ville_suggestion_selectionnee(monkeypatch, capsys):
     assert appels == ["Saint-Piere", "Saint-Pierre"]
     assert "Recherche relancée avec : Saint-Pierre" in sortie
     assert "Ferme NetAtlas" in sortie
-    assert "Agriculture" in sortie
 
 
 def test_afficher_recherche_ville_choix_non_numerique(monkeypatch, capsys):
@@ -442,6 +443,7 @@ def test_afficher_recherche_globale_avec_resultats(monkeypatch, capsys):
 
     donnees = [
         (
+            1,
             "Ferme NetAtlas",
             "Saint-Pierre",
             "Agriculture",
@@ -466,6 +468,291 @@ def test_afficher_recherche_globale_avec_resultats(monkeypatch, capsys):
     assert "0262123456" in sortie
     assert "https://exemple.test" in sortie
     assert "0.95" in sortie
+
+
+def test_afficher_lieux_par_ville_choix_lieu_non_numerique(monkeypatch, capsys):
+    choix = iter(["Saint-Pierre", "abc"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    lieux = [
+        (
+            1,
+            "Saint-Pierre",
+            "Agriculture",
+            "Ferme NetAtlas",
+            "10 rue Exemple",
+            "0262123456",
+            "https://exemple.test",
+        )
+    ]
+
+    monkeypatch.setattr(menu, "rechercher_lieux_par_ville", lambda _: lieux)
+
+    menu.afficher_lieux_par_ville()
+
+    sortie = capsys.readouterr().out
+
+    assert "Ferme NetAtlas" in sortie
+    assert "Choix invalide" in sortie
+
+
+
+def test_afficher_lieux_par_ville_choix_lieu_hors_limites(monkeypatch, capsys):
+    choix = iter(["Saint-Pierre", "9"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    lieux = [
+        (
+            1,
+            "Saint-Pierre",
+            "Agriculture",
+            "Ferme NetAtlas",
+            "10 rue Exemple",
+            "0262123456",
+            "https://exemple.test",
+        )
+    ]
+
+    monkeypatch.setattr(menu, "rechercher_lieux_par_ville", lambda _: lieux)
+
+    menu.afficher_lieux_par_ville()
+
+    sortie = capsys.readouterr().out
+
+    assert "Ferme NetAtlas" in sortie
+    assert "Choix invalide" in sortie
+
+
+def test_afficher_lieux_par_ville_choix_lieu_valide(monkeypatch, capsys):
+    choix = iter(["Saint-Pierre", "1"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    lieux = [
+        (
+            1,
+            "Saint-Pierre",
+            "Agriculture",
+            "Ferme NetAtlas",
+            "10 rue Exemple",
+            "0262123456",
+            "https://exemple.test",
+        )
+    ]
+
+    monkeypatch.setattr(menu, "rechercher_lieux_par_ville", lambda _: lieux)
+
+    place = (
+        1,
+        "Ferme NetAtlas",
+        "Saint-Pierre",
+        "Agriculture",
+        "10 rue Exemple",
+        "0262123456",
+        "https://exemple.test",
+    )
+
+    monkeypatch.setattr(menu, "get_place_details", lambda _: place)
+
+    appels = []
+
+    monkeypatch.setattr(menu, "afficher_place", lambda p: appels.append(p))
+
+    menu.afficher_lieux_par_ville()
+
+    capsys.readouterr()
+
+    assert appels == [place]
+
+
+
+def test_afficher_lieux_par_ville_suggestion_choix_lieu_non_numerique(
+    monkeypatch, capsys
+):
+    choix = iter(["Saint-Piere", "1", "abc"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    def fausse_recherche(nom_ville):
+        if nom_ville == "Saint-Piere":
+            return []
+
+        return [
+            (
+                1,
+                "Saint-Pierre",
+                "Agriculture",
+                "Ferme NetAtlas",
+                "10 rue Exemple",
+                "0262123456",
+                "https://exemple.test",
+            )
+        ]
+
+    monkeypatch.setattr(menu, "rechercher_lieux_par_ville", fausse_recherche)
+
+    suggestions = [
+        ("Saint-Pierre", 0.92),
+        ("Saint-Paul", 0.71),
+    ]
+
+    monkeypatch.setattr(menu, "suggerer_villes", lambda _: suggestions)
+
+    menu.afficher_lieux_par_ville()
+
+    sortie = capsys.readouterr().out
+
+    assert "Recherche relancée avec : Saint-Pierre" in sortie
+    assert "Ferme NetAtlas" in sortie
+    assert "Choix invalide" in sortie
+
+
+def test_afficher_lieux_par_ville_suggestion_choix_lieu_hors_limites(
+    monkeypatch, capsys
+):
+    choix = iter(["Saint-Piere", "1", "9"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    def fausse_recherche(nom_ville):
+        if nom_ville == "Saint-Piere":
+            return []
+
+        return [
+            (
+                1,
+                "Saint-Pierre",
+                "Agriculture",
+                "Ferme NetAtlas",
+                "10 rue Exemple",
+                "0262123456",
+                "https://exemple.test",
+            )
+        ]
+
+    monkeypatch.setattr(menu, "rechercher_lieux_par_ville", fausse_recherche)
+
+    suggestions = [
+        ("Saint-Pierre", 0.92),
+        ("Saint-Paul", 0.71),
+    ]
+
+    monkeypatch.setattr(menu, "suggerer_villes", lambda _: suggestions)
+
+    menu.afficher_lieux_par_ville()
+
+    sortie = capsys.readouterr().out
+
+    assert "Recherche relancée avec : Saint-Pierre" in sortie
+    assert "Ferme NetAtlas" in sortie
+    assert "Choix invalide" in sortie
+
+
+
+def test_afficher_lieux_par_ville_suggestion_choix_lieu_valide(
+    monkeypatch, capsys
+):
+    choix = iter(["Saint-Piere", "1", "1"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    def fausse_recherche(nom_ville):
+        if nom_ville == "Saint-Piere":
+            return []
+
+        return [
+            (
+                1,
+                "Saint-Pierre",
+                "Agriculture",
+                "Ferme NetAtlas",
+                "10 rue Exemple",
+                "0262123456",
+                "https://exemple.test",
+            )
+        ]
+
+    monkeypatch.setattr(menu, "rechercher_lieux_par_ville", fausse_recherche)
+
+    suggestions = [
+        ("Saint-Pierre", 0.92),
+        ("Saint-Paul", 0.71),
+    ]
+
+    monkeypatch.setattr(menu, "suggerer_villes", lambda _: suggestions)
+
+    place = (
+        1,
+        "Ferme NetAtlas",
+        "Saint-Pierre",
+        "Agriculture",
+        "10 rue Exemple",
+        "0262123456",
+        "https://exemple.test",
+    )
+
+    monkeypatch.setattr(menu, "get_place_details", lambda _: place)
+
+    appels = []
+
+    monkeypatch.setattr(menu, "afficher_place", lambda p: appels.append(p))
+
+    menu.afficher_lieux_par_ville()
+
+    capsys.readouterr()
+
+    assert appels == [place]
+
+
+def test_afficher_place_sans_coordonnees(capsys):
+    place = (
+        1,
+        "Ferme NetAtlas",
+        "Ferme locale de test",
+        "10 rue Exemple",
+        None,
+        None,
+        "0262123456",
+        "contact@exemple.test",
+        "https://exemple.test",
+        True,
+        "Saint-Pierre",
+        "Agriculture",
+    )
+
+    menu.afficher_place(place)
+
+    sortie = capsys.readouterr().out
+
+    assert "Ferme NetAtlas" in sortie
+    assert "Non renseigné" in sortie
+
+
+def test_afficher_place_avec_coordonnees(capsys):
+    place = (
+        4,
+        "Marché de Saint-Pierre",
+        "Marché forain",
+        "Saint-Pierre",
+        -21.339220,
+        55.458830,
+        None,
+        None,
+        None,
+        True,
+        "Saint-Pierre",
+        "Agriculture",
+    )
+
+    menu.afficher_place(place)
+
+    sortie = capsys.readouterr().out
+
+    assert "Marché de Saint-Pierre" in sortie
+    assert "-21.33922" in sortie
+    assert "55.45883" in sortie
 
 
 

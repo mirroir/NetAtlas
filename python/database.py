@@ -171,6 +171,7 @@ def rechercher_lieux_par_ville(nom_ville):
 
         curseur.execute("""
             SELECT
+                p.id,
                 v.name,
                 c.name,
                 p.name,
@@ -228,6 +229,7 @@ def rechercher_global(terme):
 
         requete = """
             SELECT
+                p.id,
                 p.name,
                 v.name,
                 c.name,
@@ -314,5 +316,35 @@ def get_place_details(place_id):
 
     finally:
         connexion.close()
+
+
+def get_place_tags(place_id):
+    """Retourne les tags associés à un lieu."""
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        requete = """
+            SELECT t.name
+            FROM place_tags pt
+            JOIN tags t ON t.id = pt.tag_id
+            WHERE pt.place_id = %s
+            ORDER BY t.name;
+        """
+
+        curseur.execute(requete, (place_id,))
+        tags = curseur.fetchall()
+        curseur.close()
+
+        return [tag[0] for tag in tags]
+
+    except psycopg.Error as erreur:
+        print(f"Erreur lors de la récupération des tags : {erreur}")
+        return []
+
+    finally:
+        connexion.close()
+
 
 

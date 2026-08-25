@@ -12,7 +12,7 @@ def test_recherche_globale_par_ville():
 
     # La ville est le 2e élément retourné par la requête SQL
     assert any(
-        resultat[1] == "Saint-Pierre"
+        resultat[2] == "Saint-Pierre"
         for resultat in resultats
     )
 

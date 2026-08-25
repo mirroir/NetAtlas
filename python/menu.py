@@ -3,6 +3,7 @@ try:
         get_categories,
         get_pays,
         get_place_details,
+        get_place_tags,
         get_villes,
         rechercher_global,
         rechercher_lieux_par_ville,
@@ -14,6 +15,7 @@ except ImportError:
         get_categories,
         get_pays,
         get_place_details,
+        get_place_tags,
         get_villes,
         rechercher_global,
         rechercher_lieux_par_ville,
@@ -151,15 +153,35 @@ def afficher_lieux_par_ville():
 
     if lieux:
         print("\n=== Lieux trouvés dans NetAtlas ===\n")
+        print(f"Ville : {lieux[0][1]}\n")
 
-        for ville, categorie, lieu, adresse, telephone, site in lieux:
-            print(f"Ville      : {ville}")
-            print(f"Catégorie  : {categorie}")
-            print(f"Lieu       : {lieu}")
-            print(f"Adresse    : {adresse}")
-            print(f"Téléphone  : {telephone or 'Non renseigné'}")
-            print(f"Site web   : {site or 'Non renseigné'}")
-            print()
+        for numero, lieu_data in enumerate(lieux, start=1):
+            identifiant, _ville, _categorie, lieu, _adresse, _telephone, _site = lieu_data
+            print(f"{numero} - {lieu}")
+
+        choix = input(
+            "\nEntrez le numéro du lieu à consulter "
+            "(Entrée pour revenir au menu) : "
+        ).strip()
+
+        if choix == "":
+            return
+
+        if not choix.isdigit():
+            print("\nChoix invalide.\n")
+            return
+
+        index = int(choix) - 1
+
+        if not 0 <= index < len(lieux):
+            print("\nChoix invalide.\n")
+            return
+
+        identifiant = lieux[index][0]
+        place = get_place_details(identifiant)
+
+        if place is not None:
+            afficher_place(place)
 
     else:
         print("\nAucun lieu trouvé dans NetAtlas.")
@@ -191,15 +213,45 @@ def afficher_lieux_par_ville():
 
                     if lieux:
                         print("=== Lieux trouvés dans NetAtlas ===\n")
+                        print(f"Ville : {lieux[0][1]}\n")
 
-                        for ville, categorie, lieu, adresse, telephone, site in lieux:
-                            print(f"Ville      : {ville}")
-                            print(f"Catégorie  : {categorie}")
-                            print(f"Lieu       : {lieu}")
-                            print(f"Adresse    : {adresse}")
-                            print(f"Téléphone  : {telephone or 'Non renseigné'}")
-                            print(f"Site web   : {site or 'Non renseigné'}")
-                            print()
+                        for numero, lieu_data in enumerate(lieux, start=1):
+                            (
+                                identifiant,
+                                _ville,
+                                _categorie,
+                                lieu,
+                                _adresse,
+                                _telephone,
+                                _site,
+                            ) = lieu_data
+
+                            print(f"{numero} - {lieu}")
+
+                        choix_lieu = input(
+                            "\nEntrez le numéro du lieu à consulter "
+                            "(Entrée pour revenir au menu) : "
+                        ).strip()
+
+                        if choix_lieu == "":
+                            return
+
+                        if not choix_lieu.isdigit():
+                            print("\nChoix invalide.\n")
+                            return
+
+                        index_lieu = int(choix_lieu) - 1
+
+                        if not 0 <= index_lieu < len(lieux):
+                            print("\nChoix invalide.\n")
+                            return
+
+                        identifiant = lieux[index_lieu][0]
+                        place = get_place_details(identifiant)
+
+                        if place is not None:
+                            afficher_place(place)
+
 
                     else:
                         print("\nAucun lieu trouvé pour cette ville.\n")
@@ -230,7 +282,7 @@ def afficher_recherche_globale():
 
     print("\n=== RÉSULTATS DE LA RECHERCHE GLOBALE ===\n")
 
-    for lieu, ville, categorie, adresse, telephone, site, score in resultats:
+    for _place_id, lieu, ville, categorie, adresse, telephone, site, score in resultats:
         print(f"Lieu       : {lieu}")
         print(f"Ville      : {ville}")
         print(f"Catégorie  : {categorie}")
@@ -241,21 +293,8 @@ def afficher_recherche_globale():
         print()
 
 
-def afficher_detail_lieu():
+def afficher_place(place):
     """Affiche les informations détaillées d'un lieu."""
-
-    try:
-        place_id = int(input("\nIdentifiant du lieu : ").strip())
-    except ValueError:
-        print("\nIdentifiant invalide.\n")
-        return
-
-    place = get_place_details(place_id)
-
-    if place is None:
-        print("\nAucun lieu trouvé avec cet identifiant.\n")
-        return
-
     (
         identifiant,
         nom,
@@ -267,24 +306,83 @@ def afficher_detail_lieu():
         email,
         site,
         actif,
-        ville,
+        _ville,
         categorie,
     ) = place
+
+    if latitude is not None and longitude is not None:
+        point_gps = f"{latitude}, {longitude}"
+    else:
+        point_gps = "Non renseigné"
+
+    tags = get_place_tags(identifiant)
+
+    if tags:
+        tags_affiches = ", ".join(tags)
+    else:
+        tags_affiches = "Aucun"
 
     print("\n=== DÉTAIL DU LIEU ===\n")
     print(f"Identifiant : {identifiant}")
     print(f"Nom         : {nom}")
     print(f"Catégorie   : {categorie}")
-    print(f"Ville       : {ville}")
-    print(f"Description : {description or 'Non renseignée'}")
     print(f"Adresse     : {adresse or 'Non renseignée'}")
-    print(f"Latitude    : {latitude or 'Non renseignée'}")
-    print(f"Longitude   : {longitude or 'Non renseignée'}")
+    print(f"Point GPS   : {point_gps}")
+    print(f"Description : {description or 'Non renseignée'}")
     print(f"Téléphone   : {telephone or 'Non renseigné'}")
     print(f"Email       : {email or 'Non renseigné'}")
     print(f"Site web    : {site or 'Non renseigné'}")
+    print(f"Tags        : {tags_affiches}")
     print(f"Actif       : {'Oui' if actif else 'Non'}")
     print()
+
+
+def afficher_detail_lieu():
+    terme = input("\nNom ou terme à rechercher : ").strip()
+
+    if not terme:
+        print("\nRecherche vide.\n")
+        return
+
+    resultats = rechercher_global(terme)
+
+    if not resultats:
+        print("\nAucun lieu trouvé.\n")
+        return
+
+    print("\n=== LIEUX TROUVÉS ===\n")
+
+    for numero, resultat in enumerate(resultats, start=1):
+        place_id, nom, ville, categorie, *_ = resultat
+        print(f"{numero} - {nom} - {ville} - {categorie}")
+
+    print("0 - Annuler")
+
+    choix = input("\nVotre choix : ").strip()
+
+    if choix == "0":
+        print("\nRecherche annulée.\n")
+        return
+
+    if not choix.isdigit():
+        print("\nChoix invalide.\n")
+        return
+
+    index = int(choix) - 1
+
+    if not 0 <= index < len(resultats):
+        print("\nChoix invalide.\n")
+        return
+
+    place_id = resultats[index][0]
+
+    place = get_place_details(place_id)
+
+    if place is None:
+        print("\nAucun lieu trouvé.\n")
+        return
+
+    afficher_place(place)
 
 
 def afficher_menu():

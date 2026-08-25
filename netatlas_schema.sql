@@ -421,7 +421,7 @@ ALTER TABLE public.place_services OWNER TO postgres;
 
 CREATE TABLE public.place_tags (
     place_id integer NOT NULL,
-    tag_id integer
+    tag_id integer NOT NULL
 );
 
 
@@ -1114,7 +1114,7 @@ ALTER TABLE ONLY public.place_services
 --
 
 ALTER TABLE ONLY public.place_tags
-    ADD CONSTRAINT place_tags_pkey PRIMARY KEY (place_id);
+    ADD CONSTRAINT place_tags_pkey PRIMARY KEY (place_id, tag_id);
 
 
 --
