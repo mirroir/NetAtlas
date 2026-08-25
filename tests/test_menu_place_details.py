@@ -67,4 +67,61 @@ def test_afficher_detail_lieu_affichage_complet(monkeypatch, capsys):
 
 
 
+def test_afficher_detail_lieu_annulation(monkeypatch, capsys):
+    resultats = [(1, "Marché de Saint-Pierre", "Saint-Pierre", "Marché")]
+
+    reponses = iter(["marché", "0"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(reponses))
+    monkeypatch.setattr(menu, "rechercher_global", lambda _: resultats)
+
+    menu.afficher_detail_lieu()
+
+    sortie = capsys.readouterr().out
+    assert "Recherche annulée." in sortie
+
+
+def test_afficher_detail_lieu_choix_non_numerique(monkeypatch, capsys):
+    resultats = [(1, "Marché de Saint-Pierre", "Saint-Pierre", "Marché")]
+
+    reponses = iter(["marché", "abc"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(reponses))
+    monkeypatch.setattr(menu, "rechercher_global", lambda _: resultats)
+
+    menu.afficher_detail_lieu()
+
+    sortie = capsys.readouterr().out
+    assert "Choix invalide." in sortie
+
+
+def test_afficher_detail_lieu_choix_hors_liste(monkeypatch, capsys):
+    resultats = [(1, "Marché de Saint-Pierre", "Saint-Pierre", "Marché")]
+
+    reponses = iter(["marché", "99"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(reponses))
+    monkeypatch.setattr(menu, "rechercher_global", lambda _: resultats)
+
+    menu.afficher_detail_lieu()
+
+    sortie = capsys.readouterr().out
+    assert "Choix invalide." in sortie
+
+
+def test_afficher_detail_lieu_details_introuvables(monkeypatch, capsys):
+    resultats = [(1, "Marché de Saint-Pierre", "Saint-Pierre", "Marché")]
+
+    reponses = iter(["marché", "1"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(reponses))
+    monkeypatch.setattr(menu, "rechercher_global", lambda _: resultats)
+    monkeypatch.setattr(menu, "get_place_details", lambda _: None)
+
+    menu.afficher_detail_lieu()
+
+    sortie = capsys.readouterr().out
+    assert "Aucun lieu trouvé." in sortie
+
+
 
