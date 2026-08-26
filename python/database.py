@@ -374,4 +374,27 @@ def get_place_services(place_id):
     finally:
         connexion.close()
 
+def ajouter_service_lieu(place_id, service_id):
+    connexion = connexion_db()
+    curseur = connexion.cursor()
+
+    try:
+        curseur.execute(
+            """
+            INSERT INTO place_services (place_id, service_id)
+            VALUES (%s, %s)
+            """,
+            (place_id, service_id),
+        )
+        connexion.commit()
+        return True
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        curseur.close()
+        connexion.close()
+
 
