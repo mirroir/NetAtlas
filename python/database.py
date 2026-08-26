@@ -398,3 +398,27 @@ def ajouter_service_lieu(place_id, service_id):
         connexion.close()
 
 
+def supprimer_service_lieu(place_id, service_id):
+    connexion = connexion_db()
+    curseur = connexion.cursor()
+
+    try:
+        curseur.execute(
+            """
+            DELETE FROM place_services
+            WHERE place_id = %s AND service_id = %s
+            """,
+            (place_id, service_id),
+        )
+        connexion.commit()
+        return True
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        curseur.close()
+        connexion.close()
+
+
