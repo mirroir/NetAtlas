@@ -59,6 +59,7 @@ VALUES
         TRUE
     );
 
+
 -- Tags utilisés par les tests
 INSERT INTO tags (id, name)
 VALUES
@@ -68,6 +69,20 @@ VALUES
 
 -- Association des tags au lieu de test
 INSERT INTO place_tags (place_id, tag_id)
+VALUES
+    (1, 1),
+    (1, 2),
+    (1, 3);
+
+-- Services utilisés par les tests
+INSERT INTO services (id, name, description)
+VALUES
+    (1, 'Parking', 'Stationnement disponible à proximité'),
+    (2, 'Accès PMR', 'Accès adapté aux personnes à mobilité réduite'),
+    (3, 'Toilettes', 'Toilettes disponibles sur place');
+
+-- Association des services au lieu de test
+INSERT INTO place_services (place_id, service_id)
 VALUES
     (1, 1),
     (1, 2),

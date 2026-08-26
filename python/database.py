@@ -347,4 +347,31 @@ def get_place_tags(place_id):
         connexion.close()
 
 
+def get_place_services(place_id):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        requete = """
+            SELECT s.name
+            FROM services s
+            JOIN place_services ps ON ps.service_id = s.id
+            WHERE ps.place_id = %s
+            ORDER BY s.id;
+        """
+
+        curseur.execute(requete, (place_id,))
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return [service[0] for service in resultats]
+
+    except psycopg.Error as erreur:
+        print(f"Erreur lors de la récupération des services : {erreur}")
+        return []
+
+    finally:
+        connexion.close()
+
 

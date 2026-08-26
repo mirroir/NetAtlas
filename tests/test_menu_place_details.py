@@ -54,6 +54,8 @@ def test_afficher_detail_lieu_affichage_complet(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda _: next(reponses))
     monkeypatch.setattr(menu, "rechercher_global", lambda _: resultats)
     monkeypatch.setattr(menu, "get_place_details", lambda _: place_test)
+    monkeypatch.setattr(menu, "get_place_tags", lambda _: ["Marché forain", "Producteurs locaux", "Produits frais"],)
+    monkeypatch.setattr(menu, "get_place_services", lambda _: ["Parking", "Accès PMR", "Toilettes"],)
 
     menu.afficher_detail_lieu()
 
@@ -62,6 +64,11 @@ def test_afficher_detail_lieu_affichage_complet(monkeypatch, capsys):
     assert "Marché" in sortie
     assert "Saint-Pierre" in sortie
     assert "Produits locaux" in sortie
+    assert "Marché forain" in sortie
+    assert "Produits frais" in sortie
+    assert "Parking" in sortie
+    assert "Accès PMR" in sortie
+    assert "Toilettes" in sortie
     assert "Non renseigné" in sortie
     assert "Oui" in sortie
 

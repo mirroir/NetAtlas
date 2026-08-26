@@ -69,10 +69,8 @@ jobs:
           TO netatlas_ci_user;
           SQL
 
-      - name: Vérifier la qualité du code avec Ruff
-        run: ruff check .
+      - name: Contrôle globale NetAtlas
+        run: ./scripts/check_netatlas.sh
 
-      - name: Exécuter les tests
-        run: pytest -v --cov=python --cov-report=term-missing --cov-fail-under=100
 
 

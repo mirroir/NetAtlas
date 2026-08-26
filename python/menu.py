@@ -3,6 +3,7 @@ try:
         get_categories,
         get_pays,
         get_place_details,
+        get_place_services,
         get_place_tags,
         get_villes,
         rechercher_global,
@@ -15,6 +16,7 @@ except ImportError:
         get_categories,
         get_pays,
         get_place_details,
+        get_place_services,
         get_place_tags,
         get_villes,
         rechercher_global,
@@ -322,6 +324,14 @@ def afficher_place(place):
     else:
         tags_affiches = "Aucun"
 
+    services = get_place_services(identifiant)
+
+    if services:
+        services_affiches = ", ".join(services)
+
+    else:
+        services_affiches = "Aucun"
+
     print("\n=== DÉTAIL DU LIEU ===\n")
     print(f"Identifiant : {identifiant}")
     print(f"Nom         : {nom}")
@@ -333,6 +343,7 @@ def afficher_place(place):
     print(f"Email       : {email or 'Non renseigné'}")
     print(f"Site web    : {site or 'Non renseigné'}")
     print(f"Tags        : {tags_affiches}")
+    print(f"Services    : {services_affiches}")
     print(f"Actif       : {'Oui' if actif else 'Non'}")
     print()
 
