@@ -383,11 +383,16 @@ def ajouter_service_lieu(place_id, service_id):
             """
             INSERT INTO place_services (place_id, service_id)
             VALUES (%s, %s)
+            ON CONFLICT (place_id, service_id) DO
+            NOTHING
             """,
             (place_id, service_id),
         )
+
+        ajoute = curseur.rowcount > 0
+
         connexion.commit()
-        return True
+        return ajoute
 
     except Exception:
         connexion.rollback()
@@ -410,8 +415,11 @@ def supprimer_service_lieu(place_id, service_id):
             """,
             (place_id, service_id),
         )
+
+        supprime = curseur.rowcount > 0
+
         connexion.commit()
-        return True
+        return supprime
 
     except Exception:
         connexion.rollback()

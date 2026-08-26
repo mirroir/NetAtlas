@@ -1,5 +1,6 @@
 try:
     from .database import (
+        ajouter_service_lieu,
         get_categories,
         get_pays,
         get_place_details,
@@ -10,9 +11,11 @@ try:
         rechercher_lieux_par_ville,
         rechercher_ville,
         suggerer_villes,
+        supprimer_service_lieu,
     )
 except ImportError:
     from database import (
+        ajouter_service_lieu,
         get_categories,
         get_pays,
         get_place_details,
@@ -23,6 +26,7 @@ except ImportError:
         rechercher_lieux_par_ville,
         rechercher_ville,
         suggerer_villes,
+        supprimer_service_lieu,
     )
 
 
@@ -396,6 +400,38 @@ def afficher_detail_lieu():
     afficher_place(place)
 
 
+
+def ajouter_service_a_lieu():
+    """Associe un service existant à un lieu."""
+
+    try:
+        place_id = int(input("Identifiant du lieu : "))
+        service_id = int(input("Identifiant du service : "))
+    except ValueError:
+        print("Erreur : les identifiants doivent être des nombres.")
+        return
+
+    if ajouter_service_lieu(place_id, service_id):
+        print("Service ajouté au lieu avec succès.")
+    else:
+        print("Association service-lieu déjà existante.")
+
+def supprimer_service_a_lieu():
+    """Supprime l'association entre un service et un lieu."""
+
+    try:
+        place_id = int(input("Identifiant du lieu : "))
+        service_id = int(input("Identifiant du service : "))
+    except ValueError:
+        print("Erreur : les identifiants doivent être des nombres.")
+        return
+
+    if supprimer_service_lieu(place_id, service_id):
+        print("Service supprimé du lieu avec succès.")
+    else:
+        print("Association service-lieu inexistante.")
+
+
 def afficher_menu():
     print("=" * 45)
     print("            NetAtlas -> Ver. 1")
@@ -409,7 +445,9 @@ def afficher_menu():
     print("5 - Rechercher les lieux d'une ville")
     print("6 - Recherche globale")
     print("7 - Afficher les détails d'un lieu")
-    print("8 - Quitter")
+    print("8 - Ajouter un service à un lieu")
+    print("9 - Supprimer un service d'un lieu")
+    print("10 - Quitter")
     print()
 
 
