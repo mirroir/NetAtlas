@@ -8,6 +8,7 @@ from menu import (
     afficher_recherche_ville,
     afficher_villes,
     ajouter_service_a_lieu,
+    modifier_service_a_lieu,
     supprimer_service_a_lieu,
 )
 
@@ -46,6 +47,9 @@ def main():
             supprimer_service_a_lieu()
 
         elif choix == "10":
+            modifier_service_a_lieu()
+
+        elif choix == "11":
             print("Au revoir !")
             break
             

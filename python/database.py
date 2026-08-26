@@ -429,4 +429,31 @@ def supprimer_service_lieu(place_id, service_id):
         curseur.close()
         connexion.close()
 
+def modifier_service_lieu(place_id, ancien_service_id, nouveau_service_id):
+    connexion = connexion_db()
+    curseur = connexion.cursor()
+
+    try:
+        curseur.execute(
+            """
+            UPDATE place_services
+            SET service_id = %s
+            WHERE place_id = %s AND service_id = %s
+            """,
+            (nouveau_service_id, place_id, ancien_service_id),
+        )
+
+        modifie = curseur.rowcount > 0
+
+        connexion.commit()
+        return modifie
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        curseur.close()
+        connexion.close()
+
 

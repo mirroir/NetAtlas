@@ -7,6 +7,7 @@ try:
         get_place_services,
         get_place_tags,
         get_villes,
+        modifier_service_lieu,
         rechercher_global,
         rechercher_lieux_par_ville,
         rechercher_ville,
@@ -22,6 +23,7 @@ except ImportError:
         get_place_services,
         get_place_tags,
         get_villes,
+        modifier_service_lieu,
         rechercher_global,
         rechercher_lieux_par_ville,
         rechercher_ville,
@@ -416,6 +418,28 @@ def ajouter_service_a_lieu():
     else:
         print("Association service-lieu déjà existante.")
 
+
+def modifier_service_a_lieu():
+    try:
+        place_id = int(input("Identifiant du lieu : "))
+        ancien_service_id = int(input("Ancien identifiant du service : "))
+        nouveau_service_id = int(input("Nouvel identifiant du service : "))
+    except ValueError:
+        print("Erreur : les identifiants doivent être des nombres.")
+        return
+
+    modifie = modifier_service_lieu(
+        place_id,
+        ancien_service_id,
+        nouveau_service_id,
+    )
+
+    if modifie:
+        print("Service du lieu modifié avec succès.")
+    else:
+        print("Association service-lieu inexistante.")
+
+
 def supprimer_service_a_lieu():
     """Supprime l'association entre un service et un lieu."""
 
@@ -447,7 +471,8 @@ def afficher_menu():
     print("7 - Afficher les détails d'un lieu")
     print("8 - Ajouter un service à un lieu")
     print("9 - Supprimer un service d'un lieu")
-    print("10 - Quitter")
+    print("10 - Modifier un service d'un lieu")
+    print("11 - Quitter")
     print()
 
 
