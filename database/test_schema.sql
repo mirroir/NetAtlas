@@ -633,7 +633,8 @@ ALTER SEQUENCE public.subcategories_id_seq OWNED BY public.subcategories.id;
 
 CREATE TABLE public.tags (
     id integer NOT NULL,
-    name character varying(100) NOT NULL
+    name character varying(100) NOT NULL,
+    category_id integer NOT NULL
 );
 
 
@@ -916,6 +917,23 @@ ALTER TABLE ONLY public.avis
 
 
 --
+-- Name: avis avis_commentaire_non_vide; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.avis
+    ADD CONSTRAINT avis_commentaire_non_vide CHECK ((btrim(commentaire) <> ''::text));
+
+
+--
+-- Name: avis avis_commentaire_longueur_max; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.avis
+    ADD CONSTRAINT avis_commentaire_longueur_max
+    CHECK ((char_length(commentaire) <= 1000));
+
+
+--
 -- Name: categories categories_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1121,6 +1139,12 @@ ALTER TABLE ONLY public.tags
 
 ALTER TABLE ONLY public.tags
     ADD CONSTRAINT tags_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.tags
+    ADD CONSTRAINT tags_category_id_fkey
+    FOREIGN KEY (category_id)
+    REFERENCES public.categories(id)
+    ON DELETE RESTRICT;
 
 
 --
@@ -1352,4 +1376,15 @@ ALTER TABLE ONLY public.villes
 --
 
 \unrestrict R1FkM6IkyqfP3HDO16iEBXeRSLqXSbJnc5PGt9S1x3ED8dFuaYM611sjmhvWPAe
+
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON TABLE public.avis
+TO netatlas_user;
+
+GRANT USAGE, SELECT
+ON SEQUENCE public.avis_id_seq
+TO netatlas_user;
+
+
 

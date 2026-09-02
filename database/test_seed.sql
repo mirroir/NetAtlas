@@ -61,11 +61,11 @@ VALUES
 
 
 -- Tags utilisés par les tests
-INSERT INTO tags (id, name)
+INSERT INTO tags (id, name, category_id)
 VALUES
-    (1, 'Marché forain'),
-    (2, 'Producteurs locaux'),
-    (3, 'Produits frais');
+    (1, 'Marché forain', 1),
+    (2, 'Producteurs locaux', 1),
+    (3, 'Produits frais', 1);
 
 -- Association des tags au lieu de test
 INSERT INTO place_tags (place_id, tag_id)

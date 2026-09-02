@@ -707,7 +707,8 @@ ALTER SEQUENCE public.subcategories_id_seq OWNED BY public.subcategories.id;
 
 CREATE TABLE public.tags (
     id integer NOT NULL,
-    name character varying(100) NOT NULL
+    name character varying(100) NOT NULL,
+    category_id integer NOT NULL
 );
 
 
@@ -1211,6 +1212,12 @@ ALTER TABLE ONLY public.tags
 
 ALTER TABLE ONLY public.tags
     ADD CONSTRAINT tags_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY public.tags
+    ADD CONSTRAINT tags_category_id_fkey
+    FOREIGN KEY (category_id)
+    REFERENCES public.categories(id)
+    ON DELETE RESTRICT;
 
 
 --

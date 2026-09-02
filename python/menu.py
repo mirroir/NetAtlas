@@ -1,35 +1,57 @@
 try:
     from .database import (
-        ajouter_service_lieu,
+        ajouter_avis,
+        ajouter_tag_lieu,
+        get_avis_by_place,
+        get_avis_by_user,
         get_categories,
         get_pays,
+        get_place_category_id,
         get_place_details,
         get_place_services,
         get_place_tags,
+        get_places_with_ids,
+        get_tags_by_category,
+        get_users,
         get_villes,
-        modifier_service_lieu,
         rechercher_global,
         rechercher_lieux_par_ville,
         rechercher_ville,
         suggerer_villes,
-        supprimer_service_lieu,
+        supprimer_avis,
     )
 except ImportError:
     from database import (
-        ajouter_service_lieu,
+        ajouter_avis,
+        ajouter_tag_lieu,
+        get_avis_by_place,
+        get_avis_by_user,
         get_categories,
         get_pays,
+        get_place_category_id,
         get_place_details,
         get_place_services,
         get_place_tags,
+        get_places_with_ids,
+        get_tags_by_category,
+        get_users,
         get_villes,
-        modifier_service_lieu,
         rechercher_global,
         rechercher_lieux_par_ville,
         rechercher_ville,
         suggerer_villes,
-        supprimer_service_lieu,
+        supprimer_avis,
     )
+
+
+def afficher_menu_connexion():
+    print("\n=== BIENVENUE SUR NETATLAS ===\n")
+    print("1 - Connexion Administrateur")
+    print("2 - Connexion Utilisateur")
+    print("3 - Créer un profil")
+    print("4 - Accès temporaire")
+    print("0 - Quitter")
+
 
 
 def afficher_categories():
@@ -334,11 +356,12 @@ def afficher_place(place):
 
     if services:
         services_affiches = ", ".join(services)
-
     else:
         services_affiches = "Aucun"
 
-    print("\n=== DÉTAIL DU LIEU ===\n")
+    avis = get_avis_by_place(identifiant)
+
+    print("\n=== DETAIL DU LIEU ===\n")
     print(f"Identifiant : {identifiant}")
     print(f"Nom         : {nom}")
     print(f"Catégorie   : {categorie}")
@@ -351,6 +374,16 @@ def afficher_place(place):
     print(f"Tags        : {tags_affiches}")
     print(f"Services    : {services_affiches}")
     print(f"Actif       : {'Oui' if actif else 'Non'}")
+
+    print("\n=== COMMENTAIRES UTILISATEURS ===")
+
+    if avis:
+        for _, commentaire, auteur in avis:
+            print(f"\n{auteur} :")
+            print(f"  {commentaire}")
+    else:
+        print("\nAucun commentaire.")
+
     print()
 
 
@@ -403,57 +436,203 @@ def afficher_detail_lieu():
 
 
 
-def ajouter_service_a_lieu():
-    """Associe un service existant à un lieu."""
+def ajouter_tag_a_lieu():
+    lieux = get_places_with_ids()
 
-    try:
-        place_id = int(input("Identifiant du lieu : "))
-        service_id = int(input("Identifiant du service : "))
-    except ValueError:
-        print("Erreur : les identifiants doivent être des nombres.")
+    if not lieux:
+        print("\nAucun lieu disponible.")
         return
 
-    if ajouter_service_lieu(place_id, service_id):
-        print("Service ajouté au lieu avec succès.")
-    else:
-        print("Association service-lieu déjà existante.")
-
-
-def modifier_service_a_lieu():
-    try:
-        place_id = int(input("Identifiant du lieu : "))
-        ancien_service_id = int(input("Ancien identifiant du service : "))
-        nouveau_service_id = int(input("Nouvel identifiant du service : "))
-    except ValueError:
-        print("Erreur : les identifiants doivent être des nombres.")
-        return
-
-    modifie = modifier_service_lieu(
-        place_id,
-        ancien_service_id,
-        nouveau_service_id,
-    )
-
-    if modifie:
-        print("Service du lieu modifié avec succès.")
-    else:
-        print("Association service-lieu inexistante.")
-
-
-def supprimer_service_a_lieu():
-    """Supprime l'association entre un service et un lieu."""
+    print("\nLieux disponibles :\n")
+    for numero, (_, nom) in enumerate(lieux, start=1):
+        print(f"    {numero} - {nom}")
 
     try:
-        place_id = int(input("Identifiant du lieu : "))
-        service_id = int(input("Identifiant du service : "))
+        choix_lieu = int(input("\nChoisissez un lieu : "))
     except ValueError:
-        print("Erreur : les identifiants doivent être des nombres.")
+        print("\nErreur : le choix doit être un nombre.")
         return
 
-    if supprimer_service_lieu(place_id, service_id):
-        print("Service supprimé du lieu avec succès.")
+    if choix_lieu < 1 or choix_lieu > len(lieux):
+        print("\nErreur : choix de lieu invalide.")
+        return
+
+    place_id = lieux[choix_lieu - 1][0]
+
+    category_id = get_place_category_id(place_id)
+
+    if category_id is None:
+        print("\nAucune catégorie associée à ce lieu.")
+        return
+
+    tags = get_tags_by_category(category_id)
+
+    if not tags:
+        print("\nAucun tag disponible.")
+        return
+
+    print("\nTags disponibles :\n")
+    for numero, (_, nom) in enumerate(tags, start=1):
+        print(f"    {numero} - {nom}")
+
+    try:
+      choix_tag = int(input("\nChoisissez un tag : "))
+    except ValueError:
+        print("\nErreur : le choix doit être un nombre.")
+        return
+
+    if choix_tag < 1 or choix_tag > len(tags):
+        print("\nErreur : choix de tag invalide.")
+        return
+
+    tag_id = tags[choix_tag - 1][0]
+
+
+    if ajouter_tag_lieu(place_id, tag_id):
+        print("\nTag ajouté au lieu avec succès.")
     else:
-        print("Association service-lieu inexistante.")
+        print("\nImpossible d'ajouter ce tag au lieu.")
+
+
+def ajouter_commentaire_a_lieu(user_id):
+    lieux = get_places_with_ids()
+
+    if not lieux:
+        print("\nAucun lieu disponible.")
+        return
+
+    print("\nLieux disponibles :\n")
+    for numero, (_, nom) in enumerate(lieux, start=1):
+        print(f"    {numero} - {nom}")
+
+    try:
+        choix_lieu = int(input("\nChoisissez un lieu : "))
+    except ValueError:
+        print("\nErreur : le choix doit être un nombre.")
+        return
+
+    if choix_lieu < 1 or choix_lieu > len(lieux):
+        print("\nErreur : choix de lieu invalide.")
+        return
+
+    place_id = lieux[choix_lieu - 1][0]
+
+    commentaire = input("\nVotre commentaire : ").strip()
+
+    if not commentaire:
+        print("\nErreur : le commentaire ne peut pas être vide.")
+        return
+
+    ajouter_avis(place_id, user_id, commentaire)
+    print("\nCommentaire ajouté avec succès.")
+
+
+def supprimer_commentaire_a_lieu(user_id):
+
+    avis = get_avis_by_user(user_id)
+
+    if not avis:
+        print("\nVous n'avez aucun commentaire à supprimer.")
+        return
+
+    print("\nVos commentaires :\n")
+
+    for numero, (_, commentaire, nom_lieu) in enumerate(avis, start=1):
+        print(f"    {numero} - {nom_lieu}")
+        print(f"        {commentaire}")
+
+    try:
+        choix = int(input("\nChoisissez le commentaire à supprimer : "))
+    except ValueError:
+        print("\nErreur : le choix doit être un nombre.")
+        return
+
+    if choix < 1 or choix > len(avis):
+        print("\nErreur : choix de commentaire invalide.")
+        return
+
+    avis_id = avis[choix - 1][0]
+
+    confirmation = input(
+        "\nConfirmer la suppression ? (o/n) : "
+    ).strip().lower()
+
+    if confirmation != "o":
+        print("\nSuppression annulée.")
+        return
+
+    if supprimer_avis(avis_id, user_id):
+        print("\nCommentaire supprimé avec succès.")
+    else:
+        print("\nImpossible de supprimer ce commentaire.")
+
+
+def menu_mes_commentaires(user_id):
+    while True:
+        print("\n=== MES COMMENTAIRES ===\n")
+        print("1 - Voir mes commentaires")
+        print("2 - Ajouter un commentaire")
+        print("3 - Supprimer un commentaire")
+        print("4 - Retour au menu principal")
+
+        choix = input("\nVotre choix : ").strip()
+
+        if choix == "1":
+            avis = get_avis_by_user(user_id)
+
+            if not avis:
+                print("\nVous n'avez aucun commentaire.")
+                continue
+
+            print("\nVos commentaires :\n")
+
+            for numero, (_, commentaire, nom_lieu) in enumerate(
+                avis,
+                start=1,
+            ):
+                print(f"{numero} - {nom_lieu}")
+                print(f"    {commentaire}")
+
+        elif choix == "2":
+            ajouter_commentaire_a_lieu(user_id)
+
+        elif choix == "3":
+            supprimer_commentaire_a_lieu(user_id)
+
+        elif choix == "4":
+            return
+
+        else:
+            print("\nChoix invalide.")
+
+
+def choisir_utilisateur():
+    utilisateurs = get_users()
+
+    if not utilisateurs:
+        print("\nAucun utilisateur disponible.")
+        return None
+
+    print("\n=== UTILISATEURS NETATLAS ===\n")
+
+    for numero, (_, nom, email) in enumerate(utilisateurs, start=1):
+        print(f"{numero} - {nom} ({email})")
+
+    try:
+        choix = int(input("\nChoisissez votre profil : "))
+    except ValueError:
+        print("\nErreur : le choix doit être un nombre.")
+        return None
+
+    if choix < 1 or choix > len(utilisateurs):
+        print("\nErreur : utilisateur invalide.")
+        return None
+
+    user_id, nom, _ = utilisateurs[choix - 1]
+
+    print(f"\nBienvenue {nom} !")
+    return user_id
+
 
 
 def afficher_menu():
@@ -469,10 +648,9 @@ def afficher_menu():
     print("5 - Rechercher les lieux d'une ville")
     print("6 - Recherche globale")
     print("7 - Afficher les détails d'un lieu")
-    print("8 - Ajouter un service à un lieu")
-    print("9 - Supprimer un service d'un lieu")
-    print("10 - Modifier un service d'un lieu")
-    print("11 - Quitter")
+    print("8 - Ajouter un tag à un lieu")
+    print("9 - Mes commentaires")
+    print("10 - Quitter")
     print()
 
 

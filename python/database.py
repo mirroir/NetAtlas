@@ -1,9 +1,26 @@
 import os
 
 import psycopg
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from dotenv import load_dotenv
 
+password_hasher = PasswordHasher()
+
 load_dotenv("/home/dymoon/lab/NetAtlas/config/.env")
+
+
+def hash_pin(pin):
+    return password_hasher.hash(pin)
+
+def valider_pin(pin):
+    return pin.isdigit() and 4 <= len(pin) <= 6
+
+def verifier_pin(pin, pin_hash):
+    try:
+        return password_hasher.verify(pin_hash, pin)
+    except VerifyMismatchError:
+        return False
 
 def connexion_db():
     environnement = os.getenv("NETATLAS_ENV")
@@ -26,6 +43,86 @@ def connexion_db():
 
     return connexion
 
+
+def creer_utilisateur(nom, pin, role_nom="utilisateur"):
+    if not nom.strip():
+        raise ValueError("Le nom de profil ne peut pas être vide.")
+
+    if not valider_pin(pin):
+        raise ValueError("Le PIN doit contenir entre 4 et 6 chiffres.")
+
+    pin_hash = hash_pin(pin)
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO users (nom, pin_hash)
+                VALUES (%s, %s)
+                RETURNING id;
+                """,
+                (nom.strip(), pin_hash),
+            )
+
+            user_id = curseur.fetchone()[0]
+
+            curseur.execute(
+                """
+                INSERT INTO role_user (user_id, role_id)
+                SELECT %s, id
+                FROM roles
+                WHERE nom = %s;
+                """,
+                (user_id, role_nom),
+            )
+
+        connexion.commit()
+        return user_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+def authentifier_utilisateur(nom, pin, role_nom):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT u.id, u.nom, u.pin_hash
+                FROM users u
+                JOIN role_user ru ON ru.user_id = u.id
+                JOIN roles r ON r.id = ru.role_id
+                WHERE u.nom = %s
+                  AND r.nom = %s;
+                """,
+                (nom.strip(), role_nom),
+            )
+
+            resultat = curseur.fetchone()
+
+        if resultat is None:
+            return None
+
+        user_id, nom_utilisateur, pin_hash = resultat
+
+        if not verifier_pin(pin, pin_hash):
+            return None
+
+        return {
+            "user_id": user_id,
+            "nom": nom_utilisateur,
+            "role": role_nom,
+        }
+
+    finally:
+        connexion.close()
 
 
 def get_categories():
@@ -347,6 +444,164 @@ def get_place_tags(place_id):
         connexion.close()
 
 
+def get_place_tags_with_ids(place_id):
+    """Retourne les identifiants et noms des tags associés à un lieu."""
+    connexion = connexion_db()
+    curseur = connexion.cursor()
+
+    try:
+        curseur.execute(
+            """
+            SELECT t.id, t.name
+            FROM tags t
+            JOIN place_tags pt ON pt.tag_id = t.id
+            WHERE pt.place_id = %s
+            ORDER BY t.name;
+            """,
+            (place_id,),
+        )
+        return curseur.fetchall()
+
+    finally:
+        curseur.close()
+        connexion.close()
+
+def get_tags_with_ids():
+    """Retourne la liste des tags avec leur identifiant et leur nom."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, name
+                FROM tags
+                ORDER BY name;
+                """
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+
+def get_tags_by_category(category_id):
+    """Retourne les tags appartenant à une catégorie donnée."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, name
+                FROM tags
+                WHERE category_id = %s
+                ORDER BY name;
+                """,
+                (category_id,),
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+
+
+def get_places_with_ids():
+    """Retourne la liste des lieux avec leur identifiant et leur nom."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, name
+                FROM places
+                ORDER BY name;
+                """
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+
+def get_place_category_id(place_id):
+    """Retourne l'identifiant de catégorie d'un lieu."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT category_id
+                FROM places
+                WHERE id = %s;
+                """,
+                (place_id,),
+            )
+            resultat = curseur.fetchone()
+            return resultat[0] if resultat else None
+    finally:
+        connexion.close()
+
+
+
+def ajouter_tag_lieu(place_id, tag_id):
+    """Associe un tag existant à un lieu."""
+
+    connexion = connexion_db()
+    curseur = connexion.cursor()
+
+    try:
+        curseur.execute(
+            """
+            INSERT INTO place_tags (place_id, tag_id)
+            VALUES (%s, %s)
+            ON CONFLICT (place_id, tag_id) DO NOTHING
+            """,
+            (place_id, tag_id),
+        )
+
+        ajoute = curseur.rowcount > 0
+
+        connexion.commit()
+        return ajoute
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        curseur.close()
+        connexion.close()
+
+
+def supprimer_tag_lieu(place_id, tag_id):
+    connexion = connexion_db()
+    curseur = connexion.cursor()
+
+    try:
+        curseur.execute(
+            """
+            DELETE FROM place_tags
+            WHERE place_id = %s AND tag_id = %s
+            """,
+            (place_id, tag_id),
+        )
+
+        supprime = curseur.rowcount > 0
+
+        connexion.commit()
+        return supprime
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        curseur.close()
+        connexion.close()
+
+
+
 def get_place_services(place_id):
     connexion = connexion_db()
 
@@ -455,5 +710,125 @@ def modifier_service_lieu(place_id, ancien_service_id, nouveau_service_id):
     finally:
         curseur.close()
         connexion.close()
+
+def ajouter_avis(place_id, user_id, commentaire):
+    if not commentaire.strip():
+        raise ValueError("Le commentaire ne peut pas être vide!")
+
+    if len(commentaire) > 1000:
+        raise ValueError("Le commentaire ne peut pas dépasser 1000 caractères!")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO avis (place_id, user_id, commentaire)
+                VALUES (%s, %s, %s)
+                RETURNING id;
+                """,
+                (place_id, user_id, commentaire),
+            )
+
+            avis_id = cursor.fetchone()[0]
+            connexion.commit()
+            return avis_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+def get_users():
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, nom, email
+                FROM users
+                ORDER BY nom, id;
+                """
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+def get_avis_by_place(place_id):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT a.id, a.commentaire, u.nom
+                FROM avis a
+                JOIN users u ON u.id = a.user_id
+                WHERE a.place_id = %s
+                ORDER BY a.id;
+                """,
+                (place_id,),
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+
+def supprimer_avis(avis_id, user_id):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                DELETE FROM avis
+                WHERE id = %s
+                  AND user_id = %s;
+                """,
+                (avis_id, user_id),
+            )
+
+            supprime = curseur.rowcount > 0
+
+        connexion.commit()
+        return supprime
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+def get_avis_by_user(user_id):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT a.id, a.commentaire, p.name
+                FROM avis a
+                JOIN places p ON p.id = a.place_id
+                WHERE a.user_id = %s
+                ORDER BY a.id;
+                """,
+                (user_id,),
+            )
+            return cursor.fetchall()
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
 
 

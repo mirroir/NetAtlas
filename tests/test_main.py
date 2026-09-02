@@ -8,13 +8,18 @@ sys.path.append(str(Path(__file__).parent.parent / "python"))
 import main
 
 
+@pytest.fixture(autouse=True)
+def utilisateur_connecte(monkeypatch):
+    monkeypatch.setattr(main, "choisir_utilisateur", lambda: 1)
+
+
 def test_main_quitter(monkeypatch):
-    monkeypatch.setattr("builtins.input", lambda _: "11")
+    monkeypatch.setattr("builtins.input", lambda _: "10")
 
     main.main()
 
 def test_main_choix_categories(monkeypatch):
-    choix = iter(["1", "11"])
+    choix = iter(["1", "10"])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -37,13 +42,11 @@ def test_main_choix_categories(monkeypatch):
         ("5", "afficher_lieux_par_ville"),
         ("6", "afficher_recherche_globale"),
         ("7", "afficher_detail_lieu"),
-        ("8", "ajouter_service_a_lieu"),
-        ("9", "supprimer_service_a_lieu"),
-        ("10", "modifier_service_a_lieu"),
+        ("8", "ajouter_tag_a_lieu"),
     ],
 )
 def test_main_routage_options(monkeypatch, choix_menu, nom_fonction):
-    choix = iter([choix_menu, "11"])
+    choix = iter([choix_menu, "10"])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -60,8 +63,26 @@ def test_main_routage_options(monkeypatch, choix_menu, nom_fonction):
     assert appels == [nom_fonction]
 
 
+def test_main_menu_mes_commentaires(monkeypatch):
+    choix = iter(["9", "10"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    appels = []
+
+    monkeypatch.setattr(
+        main,
+        "menu_mes_commentaires",
+        lambda user_id: appels.append(user_id),
+    )
+
+    main.main()
+
+    assert appels == [1]
+
+
 def test_main_choix_invalide(monkeypatch, capsys):
-    choix = iter(["99", "11"])
+    choix = iter(["0", "10"])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -74,7 +95,7 @@ def test_main_choix_invalide(monkeypatch, capsys):
 def test_execution_directe_main(monkeypatch):
     import runpy
 
-    monkeypatch.setattr("builtins.input", lambda _: "11")
+    monkeypatch.setattr("builtins.input", lambda _: "10")
 
     runpy.run_path("python/main.py", run_name="__main__")
 
