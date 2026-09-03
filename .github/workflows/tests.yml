@@ -84,27 +84,12 @@ jobs:
           GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public
           TO netatlas_ci_user;
 
-          GRANT DELETE ON TABLE pubic.avis
+          GRANT DELETE ON TABLE public.avis
           TO netatlas_ci_user;
 
           GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
           TO netatlas_ci_user;
           SQL
-
-      - name: Diagnostic permissions PostgreSQL CI
-        run: |
-         PGPASSWORD="$DB_PASSWORD" psql \
-          -h "$DB_HOST" \
-          -U "$DB_USER" \
-          -d "$DB_NAME" \
-          -c "SELECT current_user, current_database();"
-
-         PGPASSWORD="$DB_PASSWORD" psql \
-          -h "$DB_HOST" \
-          -U "$DB_USER" \
-          -d "$DB_NAME" \
-          -c "SELECT has_table_privilege(current_user, 'public.avis', 'DELETE') AS delete_avis, has_table_privilege(current_user, 'public.villes', 'DELETE') AS delete_villes;"
-
 
       - name: Tests et Couverture
         run: ./scripts/check_netatlas.sh tests
