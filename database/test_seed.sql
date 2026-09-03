@@ -88,8 +88,23 @@ VALUES
     (1, 2),
     (1, 3);
 
+
+-- Rôles applicatifs utilisés par NetAtlas
+INSERT INTO public.roles (id, nom, description)
+VALUES
+    (1, 'admin', 'Administrateur NetAtlas'),
+    (2, 'utilisateur', 'Utilisateur permanent authentifié'),
+    (3, 'invite', 'Utilisateur temporaire à droits limités');
+
+
 INSERT INTO public.users (id, nom, email)
 VALUES (1, 'Utilisateur CI', 'ci@netatlas.local');
+
+
+-- Utilisateur applicatif utilisé par les tests CI
+INSERT INTO public.role_user (user_id, role_id)
+VALUES (1, 2);
+
 
 SELECT pg_catalog.setval(
     'public.users_id_seq',
