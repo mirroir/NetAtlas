@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent / "python"))
 
 from database import get_avis_by_user
@@ -41,6 +43,24 @@ def test_get_avis_by_user_sans_resultat():
         resultat = get_avis_by_user(1)
 
     assert resultat == []
+    connexion.close.assert_called_once()
+
+
+
+def test_get_avis_by_user_erreur_sql():
+    connexion = MagicMock()
+    curseur = MagicMock()
+
+    connexion.cursor.return_value.__enter__.return_value = curseur
+    curseur.execute.side_effect = Exception("Erreur SQL")
+
+    with (
+        patch("database.connexion_db", return_value=connexion),
+        pytest.raises(Exception, match="Erreur SQL"),
+    ):
+        get_avis_by_user(1)
+
+    connexion.rollback.assert_called_once()
     connexion.close.assert_called_once()
 
 

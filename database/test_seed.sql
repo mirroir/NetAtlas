@@ -88,4 +88,14 @@ VALUES
     (1, 2),
     (1, 3);
 
+INSERT INTO public.users (id, nom, email)
+VALUES (1, 'Utilisateur CI', 'ci@netatlas.local');
+
+SELECT pg_catalog.setval(
+    'public.users_id_seq',
+    (SELECT MAX(id) FROM public.users),
+    true
+);
+
+
 

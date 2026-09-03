@@ -81,7 +81,7 @@ jobs:
           GRANT CONNECT ON DATABASE netatlas_test TO netatlas_ci_user;
           GRANT USAGE ON SCHEMA public TO netatlas_ci_user;
 
-          GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public
+          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public
           TO netatlas_ci_user;
 
           GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public

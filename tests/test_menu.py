@@ -6,6 +6,19 @@ sys.path.append(str(Path(__file__).parent.parent / "python"))
 import menu
 
 
+def test_afficher_menu_connexion(capsys):
+    menu.afficher_menu_connexion()
+
+    sortie = capsys.readouterr().out
+
+    assert "BIENVENUE SUR NETATLAS" in sortie
+    assert "1 - Connexion Administrateur" in sortie
+    assert "2 - Connexion Utilisateur" in sortie
+    assert "3 - Créer un profil" in sortie
+    assert "4 - Accès temporaire" in sortie
+    assert "0 - Quitter" in sortie
+
+
 def test_afficher_categories(monkeypatch, capsys):
     donnees = [
         (1, "Agriculture", "Producteurs locaux"),
@@ -753,6 +766,5 @@ def test_afficher_place_avec_coordonnees(capsys):
     assert "Marché de Saint-Pierre" in sortie
     assert "-21.33922" in sortie
     assert "55.45883" in sortie
-
 
 

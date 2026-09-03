@@ -78,6 +78,7 @@ ALTER SEQUENCE public.addresses_id_seq OWNED BY public.addresses.id;
 CREATE TABLE public.avis (
     id integer NOT NULL,
     place_id integer,
+    user_id integer,
     notation smallint,
     commentaire text,
     reviser date
@@ -702,7 +703,8 @@ CREATE TABLE public.users (
     id integer NOT NULL,
     nom character varying(100),
     email character varying(150),
-    date_creation timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    date_creation timestamp without time zone DEFAULT CURRENT_TIMESTAMP, 
+    pin_hash text
 );
 
 
@@ -1194,6 +1196,12 @@ ALTER TABLE ONLY public.addresses
 ALTER TABLE ONLY public.avis
     ADD CONSTRAINT avis_place_id_fkey FOREIGN KEY (place_id) REFERENCES public.places(id);
 
+
+ALTER TABLE ONLY public.avis
+    ADD CONSTRAINT avis_user_id_fkey
+    FOREIGN KEY (user_id)
+    REFERENCES public.users(id)
+    ON DELETE CASCADE;
 
 --
 -- Name: documents documents_place_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
