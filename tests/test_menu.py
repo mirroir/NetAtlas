@@ -768,3 +768,17 @@ def test_afficher_place_avec_coordonnees(capsys):
     assert "55.45883" in sortie
 
 
+def test_afficher_menu_temporaire(capsys):
+    menu.afficher_menu_temporaire()
+
+    sortie = capsys.readouterr().out
+
+    assert "NetAtlas -> Accès temporaire" in sortie
+    assert "NOTE : pour ajouter des tags ou des commentaires" in sortie
+    assert "créez un profil depuis le menu d'accueil." in sortie
+    assert "1 - Voir les catégories" in sortie
+    assert "7 - Afficher les détails d'un lieu" in sortie
+    assert "0 - Retour au menu d'accueil" in sortie
+
+
+

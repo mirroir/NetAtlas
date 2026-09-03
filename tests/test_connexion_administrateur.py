@@ -16,6 +16,7 @@ def test_connexion_administrateur_succes(capsys):
 
     with (
         patch("main.afficher_menu_connexion"),
+        patch("builtins.input", return_value="Administrateur"),
         patch("main.getpass", return_value="2580"),
         patch(
             "main.authentifier_utilisateur",
@@ -33,6 +34,7 @@ def test_connexion_administrateur_succes(capsys):
 def test_connexion_administrateur_pin_incorrect(capsys):
     with (
         patch("main.afficher_menu_connexion"),
+        patch("builtins.input", return_value="Administrateur"),
         patch("main.getpass", return_value="9999"),
         patch(
             "main.authentifier_utilisateur",
@@ -44,4 +46,4 @@ def test_connexion_administrateur_pin_incorrect(capsys):
     sortie = capsys.readouterr().out
 
     assert session is None
-    assert "Accès refusé" in sortie
+    assert "Identifiants incorrects ou accès administrateur refusé." in sortie

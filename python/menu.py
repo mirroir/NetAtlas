@@ -45,12 +45,16 @@ except ImportError:
 
 
 def afficher_menu_connexion():
-    print("\n=== BIENVENUE SUR NETATLAS ===\n")
+    print("\n" + "=" * 45)
+    print("      BIENVENUE SUR NETATLAS")
+    print("=" * 45)
+    print()
     print("1 - Connexion Administrateur")
     print("2 - Connexion Utilisateur")
     print("3 - Créer un profil")
     print("4 - Accès temporaire")
     print("0 - Quitter")
+    print()
 
 
 
@@ -650,7 +654,30 @@ def afficher_menu():
     print("7 - Afficher les détails d'un lieu")
     print("8 - Ajouter un tag à un lieu")
     print("9 - Mes commentaires")
-    print("10 - Quitter")
+    print("10 - Déconnexion")
     print()
+
+
+def afficher_menu_temporaire():
+    print("=" * 45)
+    print("        NetAtlas -> Accès temporaire")
+    print("=" * 45)
+    print()
+    print(
+        "NOTE : pour ajouter des tags ou des commentaires, "
+        "créez un profil depuis le menu d'accueil."
+    )
+    print()
+
+    print("1 - Voir les catégories")
+    print("2 - Voir les pays")
+    print("3 - Voir les villes")
+    print("4 - Rechercher une ville")
+    print("5 - Rechercher les lieux d'une ville")
+    print("6 - Recherche globale")
+    print("7 - Afficher les détails d'un lieu")
+    print("0 - Retour au menu d'accueil")
+    print()
+
 
 
