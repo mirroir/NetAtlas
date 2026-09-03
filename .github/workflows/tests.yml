@@ -91,6 +91,21 @@ jobs:
           TO netatlas_ci_user;
           SQL
 
+      - name: Diagnostic permissions PostgreSQL CI
+        run: |
+         PGPASSWORD="$DB_PASSWORD" psql \
+          -h "$DB_HOST" \
+          -U "$DB_USER" \
+          -d "$DB_NAME" \
+          -c "SELECT current_user, current_database();"
+
+         PGPASSWORD="$DB_PASSWORD" psql \
+          -h "$DB_HOST" \
+          -U "$DB_USER" \
+          -d "$DB_NAME" \
+          -c "SELECT has_table_privilege(current_user, 'public.avis', 'DELETE') AS delete_avis, has_table_privilege(current_user, 'public.villes', 'DELETE') AS delete_villes;"
+
+
       - name: Tests et Couverture
         run: ./scripts/check_netatlas.sh tests
 
