@@ -87,6 +87,9 @@ jobs:
           GRANT DELETE ON TABLE public.avis
           TO netatlas_ci_user;
 
+          GRANT DELETE ON TABLE public.place_reactions
+          TO netatlas_ci_user;
+
           GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
           TO netatlas_ci_user;
           SQL
