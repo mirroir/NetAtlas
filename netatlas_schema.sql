@@ -790,6 +790,21 @@ CREATE TABLE public.users (
 
 ALTER TABLE public.users OWNER TO postgres;
 
+
+--
+-- Name: place_reactions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.place_reactions (
+    place_id integer NOT NULL,
+    user_id integer NOT NULL,
+    reaction smallint NOT NULL,
+    CONSTRAINT place_reactions_value_check
+        CHECK ((reaction = ANY (ARRAY[(-1), 1])))
+);
+
+ALTER TABLE public.place_reactions OWNER TO postgres;
+
 --
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
@@ -1127,6 +1142,14 @@ ALTER TABLE ONLY public.places
 
 
 --
+-- Name: place_reactions place_reactions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.place_reactions
+    ADD CONSTRAINT place_reactions_pkey PRIMARY KEY (place_id, user_id);
+
+
+--
 -- Name: produits produits_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -1259,6 +1282,27 @@ ALTER TABLE ONLY public.villes
 ALTER TABLE ONLY public.addresses
     ADD CONSTRAINT addresses_ville_id_fkey FOREIGN KEY (ville_id) REFERENCES public.villes(id);
 
+
+--
+-- Name: place_reactions place_reactions_place_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.place_reactions
+    ADD CONSTRAINT place_reactions_place_fk
+    FOREIGN KEY (place_id)
+    REFERENCES public.places(id)
+    ON DELETE CASCADE;
+
+
+--
+-- Name: place_reactions place_reactions_user_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.place_reactions
+    ADD CONSTRAINT place_reactions_user_fk
+    FOREIGN KEY (user_id)
+    REFERENCES public.users(id)
+    ON DELETE CASCADE;
 
 --
 -- Name: avis avis_place_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
@@ -1611,6 +1655,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.place_tags TO netatlas_user;
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.places TO netatlas_user;
 
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.place_reactions TO netatlas_user;
 
 --
 -- Name: SEQUENCE places_id_seq; Type: ACL; Schema: public; Owner: postgres

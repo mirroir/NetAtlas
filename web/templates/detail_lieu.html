@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="fr">
+	<head>
+		<meta charset="UTF-8">
+		<meta
+				name="viewport"
+				content="width=device-width, initial-scale=1.0"
+				>
+
+				<title>NetAtlas - Détail du lieu</title>
+
+				<link
+						rel="stylesheet"
+						href="{{ url_for('static', filename='style.css') }}"
+						>
+	</head>
+
+				<body>
+
+					<a class="logo logo-home" href="{{ url_for('accueil') }}">
+						NETATLAS
+					</a>
+
+					<main class="page-acces">
+						<section class="acces-contenu">
+
+							<h1>{{ lieu[1] }}</h1>
+
+							<p>
+							<strong>Ville :</strong>
+							{{ lieu[10] }}
+							</p>
+
+							<p>
+							<strong>Catégorie :</strong>
+							{{ lieu[11] }}
+							</p>
+
+							{% if lieu[2] %}
+							<p>
+							<strong>Description :</strong>
+							{{ lieu[2] }}
+							</p>
+							{% endif %}
+
+							{% if lieu[3] %}
+							<p>
+							<strong>Adresse :</strong>
+							{{ lieu[3] }}
+							</p>
+							{% endif %}
+
+							{% if lieu[4] and lieu[5] %}
+							<p>
+							<strong>Coordonnées GPS :</strong>
+							{{ lieu[4] }}, {{ lieu[5] }}
+							</p>
+							{% endif %}
+
+							{% if lieu[6] %}
+							<p>
+							<strong>Téléphone :</strong>
+							{{ lieu[6] }}
+							</p>
+							{% endif %}
+
+							{% if lieu[7] %}
+							<p>
+							<strong>Email :</strong>
+							{{ lieu[7] }}
+							</p>
+							{% endif %}
+
+							{% if lieu[8] %}
+							<p>
+							<strong>Site web :</strong>
+							<a href="{{ lieu[8] }}">
+								{{ lieu[8] }}
+							</a>
+							</p>
+							{% endif %}
+
+							{% if tags %}
+							<h2>Tags</h2>
+
+							<ul>
+								{% for tag in tags %}
+								<li>{{ tag }}</li>
+								{% endfor %}
+							</ul>
+							{% endif %}
+
+							{% if services %}
+							<h2>Services</h2>
+
+							<ul>
+								{% for service in services %}
+								<li>{{ service }}</li>
+								{% endfor %}
+							</ul>
+							{% endif %}
+
+							{% if origine == "utilisateur" %}
+
+
+							<h2>Ajouter un commentaire</h2>
+
+							{% if erreur_commentaire %}
+							<p>{{ erreur_commentaire }}</p>
+							{% endif %}
+
+							<form method="POST">
+								<input type="hidden" name="action" value="commentaire">
+
+								<p>
+								<textarea
+										name="commentaire"
+										maxlength="1000"
+										rows="4"
+										required
+										placeholder="Votre commentaire"
+										></textarea>
+								</p>
+
+								<button
+										type="submit"
+										class="choix-acces"
+										>
+										Ajouter le commentaire
+								</button>
+							</form>
+
+							{% endif %}
+
+							<section class="reactions">
+								<h3>Avis des utilisateurs</h3>
+
+								<p>
+								👍 {{ reactions[0] }}
+								&nbsp;&nbsp;&nbsp;
+								👎 {{ reactions[1] }}
+								</p>
+
+
+								{% if origine == "utilisateur" %}
+								<form
+										method="post"
+										action="{{ url_for('reaction_lieu', place_id=place_id) }}"
+										>
+										<input type="hidden" name="source" value="{{ source }}">
+
+										<button type="submit" name="reaction" value="1">
+											👍 J'aime
+										</button>
+
+									<button type="submit" name="reaction" value="-1">
+										👎 Je n'aime pas
+									</button>
+								</form>
+								{% endif %}
+
+								{% if origine == "utilisateur" and reaction_utilisateur is not none %}
+								<p>
+								Votre réaction :
+								{% if reaction_utilisateur == 1 %}
+								👍 J'aime
+								{% elif reaction_utilisateur == -1 %}
+								👎 Je n'aime pas
+								{% endif %}
+								</p>
+								{% endif %}
+							</section>
+
+							<h2>Commentaires</h2>
+
+							{% if avis %}
+
+							{% for commentaire in avis %}
+
+							<article>
+
+								<p>
+								<strong>{{ commentaire[2] }}</strong>
+								</p>
+
+								<p>
+								{{ commentaire[1] }}
+								</p>
+
+							</article>
+
+							{% endfor %}
+
+							{% else %}
+
+							<p>Aucun commentaire pour ce lieu.</p>
+
+							{% endif %}
+
+
+							{% if source == "lieu" %}
+							<a
+									class="choix-acces"
+									href="{{ url_for(
+									      'recherche_lieux',
+									      origine=origine
+									      ) }}"
+									>
+									Retour à la recherche des lieux d'une ville
+							</a>
+
+								{% else %}
+								<a
+										class="choix-acces"
+										href="{{ url_for(
+										      'recherche_globale_web',
+										      origine=origine
+										      ) }}"
+										>
+										Retour à la recherche globale
+								</a>
+									{% endif %}
+
+						</section>
+					</main>
+
+				</body>
+</html>

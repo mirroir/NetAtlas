@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Recherche - NetAtlas</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+    <a class="logo logo-home" href="{{ url_for('accueil') }}">
+        NETATLAS
+    </a>
+
+    <main class="page-acces">
+        <section class="recherche-principale">
+
+            <h1>Rechercher dans NetAtlas</h1>
+
+            <p class="recherche-description">
+                Pays, ville, lieu ou catégorie
+            </p>
+
+            <form method="POST" class="recherche-formulaire">
+                <input
+                    type="text"
+                    id="terme"
+                    name="terme"
+                    value="{{ terme }}"
+                    placeholder="Que recherchez-vous ?"
+                    autocomplete="off"
+                    required
+                >
+
+                <button type="submit">
+                    Rechercher
+                </button>
+            </form>
+
+            {% if terme %}
+
+                <section class="resultats-recherche">
+                    <h2>Résultats pour « {{ terme }} »</h2>
+
+                    {% if resultats %}
+
+                        {% for resultat in resultats %}
+                            <article class="resultat-recherche">
+
+                                <h3>
+                                    <a
+                                        href="{{ url_for(
+                                            'detail_lieu',
+                                            place_id=resultat[0],
+                                            origine=origine
+                                        ) }}"
+                                    >
+                                        {{ resultat[1] }}
+                                    </a>
+                                </h3>
+
+                                <p>
+                                    <strong>Ville :</strong>
+                                    {{ resultat[2] }}
+                                </p>
+
+                                <p>
+                                    <strong>Catégorie :</strong>
+                                    {{ resultat[3] }}
+                                </p>
+
+                                {% if resultat[4] %}
+                                    <p>
+                                        <strong>Adresse :</strong>
+                                        {{ resultat[4] }}
+                                    </p>
+                                {% endif %}
+
+                                {% if resultat[5] %}
+                                    <p>
+                                        <strong>Téléphone :</strong>
+                                        {{ resultat[5] }}
+                                    </p>
+                                {% endif %}
+
+                                {% if resultat[6] %}
+                                    <p>
+                                        <strong>Site web :</strong>
+                                        {{ resultat[6] }}
+                                    </p>
+                                {% endif %}
+
+                            </article>
+                        {% endfor %}
+
+                    {% else %}
+                        <p class="aucun-resultat">
+                            Aucun résultat trouvé.
+                        </p>
+                    {% endif %}
+                </section>
+
+            {% endif %}
+
+            <div class="recherche-retour">
+                {% if origine == "utilisateur" %}
+                    <a
+                        class="choix-acces"
+                        href="{{ url_for('espace_utilisateur') }}"
+                    >
+                        Retour
+                    </a>
+                {% else %}
+                    <a
+                        class="choix-acces"
+                        href="{{ url_for('temporaire') }}"
+                    >
+                        Retour
+                    </a>
+                {% endif %}
+            </div>
+
+        </section>
+    </main>
+
+</body>
+</html>

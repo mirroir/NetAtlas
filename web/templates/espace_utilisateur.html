@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<title>NetAtlas - Espace utilisateur</title>
+
+		<link
+				rel="stylesheet"
+				href="{{ url_for('static', filename='style.css') }}"
+				>
+	</head>
+
+		<body>
+			<a class="logo logo-home" href="{{ url_for('accueil') }}">
+				NETATLAS
+			</a>
+
+			<main class="page-acces">
+				<section class="acces-contenu">
+					<h1>Bienvenue {{ nom }}</h1>
+
+					<a class="choix-acces" href="{{ url_for('recherche_globale_web', origine='utilisateur') }}">
+						Consulter NetAtlas
+					</a>
+
+					<a class="choix-acces" href="{{ url_for('deconnexion') }}">
+						Déconnexion
+					</a>
+
+				</section>
+			</main>
+		</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<title>NetAtlas - Accès</title>
+
+		<link
+				rel="stylesheet"
+				href="{{ url_for('static', filename='style.css') }}"
+				>
+	</head>
+
+		<body>
+			<a class="logo logo-home" href="{{ url_for('accueil') }}">
+				NETATLAS
+			</a>
+
+			<a class="admin-access" href="/connexion/admin">
+				Connexion Administrateur
+			</a>
+
+			<main class="page-acces">
+				<section class="acces-contenu">
+					<h1>Bienvenue</h1>
+
+					<a class="choix-acces" href="/connexion/utilisateur">
+						Connexion Utilisateur
+					</a>
+
+					<a class="choix-acces" href="/profil/creer">
+						Créer un profil
+					</a>
+
+					<a class="choix-acces" href="/temporaire">
+						Accès temporaire
+					</a>
+				</section>
+			</main>
+		</body>
+</html>

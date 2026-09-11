@@ -225,6 +225,67 @@ def rechercher_ville(nom_ville):
         connexion.close()
 
 
+def rechercher_pays_ou_ville(terme):
+    """Recherche un pays ou une ville."""
+    terme = terme.strip()
+
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT
+                'ville' AS type_resultat,
+                v.id,
+                v.name,
+                r.name,
+                p.name,
+                v.latitude,
+                v.longitude,
+                v.population
+            FROM villes v
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays p ON r.country_id = p.id
+            WHERE v.name ILIKE %s
+
+            UNION ALL
+
+            SELECT
+                'pays' AS type_resultat,
+                p.id,
+                p.name,
+                NULL,
+                p.name,
+                NULL,
+                NULL,
+                NULL
+            FROM pays p
+            WHERE p.name ILIKE %s
+
+            ORDER BY 3;
+            """,
+            (
+                f"%{terme}%",
+                f"%{terme}%",
+            ),
+        )
+
+        resultats = curseur.fetchall()
+
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(f"Erreur lors de la recherche pays/ville : {erreur}")
+        return []
+
+    finally:
+        connexion.close()
+
+
 #============================================================#
 #                                                            #
 #                *                         *                 #
@@ -336,18 +397,46 @@ def rechercher_global(terme):
                 GREATEST(
                   similarity(p.name, %s),
                   similarity(v.name, %s),
-                  similarity(c.name, %s)
+                  similarity(c.name, %s),
+                  similarity(pa.name, %s),
+                  similarity(p.description, %s)
                ) AS score   
             FROM places p
             JOIN villes v ON p.ville_id = v.id
             JOIN categories c ON p.category_id = c.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
             WHERE
                 p.name ILIKE %s
                 OR v.name ILIKE %s
                 OR c.name ILIKE %s
+                OR pa.name ILIKE %s
+                OR p.description ILIKE %s
                 OR similarity(p.name, %s) > 0.30
                 OR similarity(v.name, %s) > 0.30
-                OR similarity(c.name, %s) > 0.30 
+                OR similarity(c.name, %s) > 0.30
+                OR similarity(pa.name, %s) > 0.30
+                OR similarity(p.description, %s) > 0.30
+                OR EXISTS (
+                 SELECT 1
+                 FROM place_tags pt
+                 JOIN tags t ON t.id = pt.tag_id
+                 WHERE pt.place_id = p.id
+                  AND (
+                   t.name ILIKE %s
+                   OR similarity(t.name, %s) > 0.30
+                  )
+                )
+                OR EXISTS (
+                 SELECT 1
+                 FROM place_services ps
+                 JOIN services s ON s.id = ps.service_id
+                 WHERE ps.place_id = p.id
+                  AND (
+                   s.name ILIKE %s
+                   OR similarity(s.name, %s) > 0.30
+                  )
+                )
                 ORDER BY score DESC, p.name
                 LIMIT 20;
         """
@@ -356,10 +445,11 @@ def rechercher_global(terme):
         curseur.execute(
                 requete,
                 (
-                    terme, terme, terme,
-                    motif, motif, motif,
-                    terme, terme, terme
-                )
+                    terme, terme, terme, terme, terme,
+                    motif, motif, motif, motif, motif,
+                    terme, terme, terme, terme, terme,
+                    motif, terme, motif, terme,
+                ),
              )        
 
         resultats = curseur.fetchall()
@@ -831,4 +921,82 @@ def get_avis_by_user(user_id):
         connexion.close()
 
 
+def enregistrer_reaction(place_id, user_id, reaction):
+    """Enregistre ou modifie la réaction d'un utilisateur pour un lieu."""
 
+    if reaction not in (-1, 1):
+        raise ValueError("La réaction doit être -1 ou 1.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO place_reactions (
+                    place_id,
+                    user_id,
+                    reaction
+                )
+                VALUES (%s, %s, %s)
+                ON CONFLICT (place_id, user_id)
+                DO UPDATE SET reaction = EXCLUDED.reaction;
+                """,
+                (place_id, user_id, reaction),
+            )
+
+        connexion.commit()
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+def get_place_reactions(place_id):
+    """Retourne le nombre de likes et de dislikes d'un lieu."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE reaction = 1) AS likes,
+                    COUNT(*) FILTER (WHERE reaction = -1) AS dislikes
+                FROM place_reactions
+                WHERE place_id = %s;
+                """,
+                (place_id,),
+            )
+
+            return curseur.fetchone()
+    finally:
+        connexion.close()
+
+def get_user_reaction(place_id, user_id):
+    """Retourne la réaction d'un utilisateur pour un lieu."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT reaction
+                FROM place_reactions
+                WHERE place_id = %s
+                  AND user_id = %s;
+                """,
+                (place_id, user_id),
+            )
+
+            resultat = curseur.fetchone()
+
+            if resultat is None:
+                return None
+
+            return resultat[0]
+    finally:
+        connexion.close()

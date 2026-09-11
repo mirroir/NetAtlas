@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>NetAtlas</title>
+
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='style.css') }}"
+        >
+    </head>
+
+    <body>
+        <main class="accueil">
+            <div class="accueil-titre">
+                <div class="explorer-texte">Explorer</div>
+
+                <a
+                    class="logo logo-lien"
+                    href="{{ url_for('acces') }}"
+                >
+                    NETATLAS
+                </a>
+            </div>
+        </main>
+    </body>
+</html>
