@@ -225,66 +225,6 @@ def rechercher_ville(nom_ville):
         connexion.close()
 
 
-def rechercher_pays_ou_ville(terme):
-    """Recherche un pays ou une ville."""
-    terme = terme.strip()
-
-    connexion = connexion_db()
-
-    try:
-        curseur = connexion.cursor()
-
-        curseur.execute(
-            """
-            SELECT
-                'ville' AS type_resultat,
-                v.id,
-                v.name,
-                r.name,
-                p.name,
-                v.latitude,
-                v.longitude,
-                v.population
-            FROM villes v
-            JOIN regions r ON v.region_id = r.id
-            JOIN pays p ON r.country_id = p.id
-            WHERE v.name ILIKE %s
-
-            UNION ALL
-
-            SELECT
-                'pays' AS type_resultat,
-                p.id,
-                p.name,
-                NULL,
-                p.name,
-                NULL,
-                NULL,
-                NULL
-            FROM pays p
-            WHERE p.name ILIKE %s
-
-            ORDER BY 3;
-            """,
-            (
-                f"%{terme}%",
-                f"%{terme}%",
-            ),
-        )
-
-        resultats = curseur.fetchall()
-
-        curseur.close()
-
-        return resultats
-
-    except psycopg.Error as erreur:
-        print(f"Erreur lors de la recherche pays/ville : {erreur}")
-        return []
-
-    finally:
-        connexion.close()
-
 
 #============================================================#
 #                                                            #
@@ -385,6 +325,34 @@ def rechercher_global(terme):
     try:
         curseur = connexion.cursor()
 
+        # Priorité à une correspondance exacte sur une ville.
+        curseur.execute(
+            """
+            SELECT
+                p.id,
+                p.name,
+                v.name,
+                c.name,
+                p.address,
+                p.phone,
+                p.website,
+                1.0 AS score
+            FROM places p
+            JOIN villes v ON p.ville_id = v.id
+            JOIN categories c ON p.category_id = c.id
+            WHERE LOWER(v.name) = LOWER(%s)
+            ORDER BY p.name
+            LIMIT 20;
+            """,
+            (terme,),
+        )
+
+        resultats_exacts = curseur.fetchall()
+
+        if resultats_exacts:
+            curseur.close()
+            return resultats_exacts
+
         requete = """
             SELECT
                 p.id,
@@ -396,6 +364,8 @@ def rechercher_global(terme):
                 p.website,
                 GREATEST(
                   similarity(p.name, %s),
+                  similarity(r.name, %s),
+                  similarity(tr.name, %s),
                   similarity(v.name, %s),
                   similarity(c.name, %s),
                   similarity(pa.name, %s),
@@ -406,16 +376,21 @@ def rechercher_global(terme):
             JOIN categories c ON p.category_id = c.id
             JOIN regions r ON v.region_id = r.id
             JOIN pays pa ON r.country_id = pa.id
+            LEFT JOIN territoires tr ON r.territoire_id = tr.id
             WHERE
                 p.name ILIKE %s
                 OR v.name ILIKE %s
                 OR c.name ILIKE %s
                 OR pa.name ILIKE %s
+                OR r.name ILIKE %s
+                OR tr.name ILIKE %s
                 OR p.description ILIKE %s
                 OR similarity(p.name, %s) > 0.30
-                OR similarity(v.name, %s) > 0.30
+                OR similarity(r.name, %s) > 0.25
+                OR similarity(tr.name, %s) > 0.25
+                OR similarity(v.name, %s) > 0.25
                 OR similarity(c.name, %s) > 0.30
-                OR similarity(pa.name, %s) > 0.30
+                OR similarity(pa.name, %s) > 0.25
                 OR similarity(p.description, %s) > 0.30
                 OR EXISTS (
                  SELECT 1
@@ -445,9 +420,9 @@ def rechercher_global(terme):
         curseur.execute(
                 requete,
                 (
-                    terme, terme, terme, terme, terme,
-                    motif, motif, motif, motif, motif,
-                    terme, terme, terme, terme, terme,
+                    terme, terme, terme, terme, terme, terme, terme,
+                    motif, motif, motif, motif, motif, motif, motif,
+                    terme, terme, terme, terme, terme, terme, terme,
                     motif, terme, motif, terme,
                 ),
              )        

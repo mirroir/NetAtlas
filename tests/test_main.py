@@ -1,8 +1,6 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.append(str(Path(__file__).parent.parent / "python"))
 
 import main
@@ -14,56 +12,8 @@ def test_main_quitter(monkeypatch):
     main.main()
 
 
-def test_main_choix_categories(monkeypatch):
-    choix = iter(["1", "10"])
-
-    monkeypatch.setattr("builtins.input", lambda _: next(choix))
-
-    appels = []
-
-    monkeypatch.setattr(
-        main,
-        "afficher_categories",
-        lambda: appels.append("categories"),
-    )
-
-    main.menu_principal(1)
-
-    assert appels == ["categories"]
-
-
-@pytest.mark.parametrize(
-    "choix_menu, nom_fonction",
-    [
-        ("2", "afficher_pays"),
-        ("3", "afficher_villes"),
-        ("4", "afficher_recherche_ville"),
-        ("5", "afficher_lieux_par_ville"),
-        ("6", "afficher_recherche_globale"),
-        ("7", "afficher_detail_lieu"),
-        ("8", "ajouter_tag_a_lieu"),
-    ],
-)
-def test_main_routage_options(monkeypatch, choix_menu, nom_fonction):
-    choix = iter([choix_menu, "10"])
-
-    monkeypatch.setattr("builtins.input", lambda _: next(choix))
-
-    appels = []
-
-    monkeypatch.setattr(
-        main,
-        nom_fonction,
-        lambda: appels.append(nom_fonction),
-    )
-
-    main.menu_principal(1)
-
-    assert appels == [nom_fonction]
-
-
 def test_main_menu_mes_commentaires(monkeypatch):
-    choix = iter(["9", "10"])
+    choix = iter(["2", "3"])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -81,7 +31,7 @@ def test_main_menu_mes_commentaires(monkeypatch):
 
 
 def test_main_choix_invalide(monkeypatch, capsys):
-    choix = iter(["99", "10"])
+    choix = iter(["99", "3"])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -387,26 +337,8 @@ def test_connexion_utilisateur_refusee(monkeypatch, capsys):
     assert "Créer un profil" in sortie
 
 
-def test_menu_temporaire_routage(monkeypatch):
-    choix = iter(["1", "0"])
-
-    monkeypatch.setattr("builtins.input", lambda _: next(choix))
-
-    appels = []
-
-    monkeypatch.setattr(
-        main,
-        "afficher_categories",
-        lambda: appels.append("categories"),
-    )
-
-    main.menu_temporaire()
-
-    assert appels == ["categories"]
-
-
 def test_menu_temporaire_choix_invalide(monkeypatch, capsys):
-    choix = iter(["99", "0"])
+    choix = iter(["99", "2"])
 
     monkeypatch.setattr("builtins.input", lambda _: next(choix))
 
@@ -416,39 +348,6 @@ def test_menu_temporaire_choix_invalide(monkeypatch, capsys):
 
     assert "Choix invalide. Essaie encore." in sortie
     assert "Retour au menu d'accueil." in sortie
-
-
-@pytest.mark.parametrize(
-    ("choix_menu", "nom_fonction"),
-    [
-        ("2", "afficher_pays"),
-        ("3", "afficher_villes"),
-        ("4", "afficher_recherche_ville"),
-        ("5", "afficher_lieux_par_ville"),
-        ("6", "afficher_recherche_globale"),
-        ("7", "afficher_detail_lieu"),
-    ],
-)
-def test_menu_temporaire_routage_options(
-    monkeypatch,
-    choix_menu,
-    nom_fonction,
-):
-    choix = iter([choix_menu, "0"])
-
-    monkeypatch.setattr("builtins.input", lambda _: next(choix))
-
-    appels = []
-
-    monkeypatch.setattr(
-        main,
-        nom_fonction,
-        lambda: appels.append(nom_fonction),
-    )
-
-    main.menu_temporaire()
-
-    assert appels == [nom_fonction]
 
 
 def test_main_acces_temporaire(monkeypatch):

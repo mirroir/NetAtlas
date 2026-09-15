@@ -1,173 +1,308 @@
-# 🌍 NetAtlas
+# NetAtlas
 
-[![NetAtlas Tests](https://github.com/mirroir/NetAtlas/actions/workflows/tests.yml/badge.svg)](https://github.com/mirroir/NetAtlas/actions/workflows/tests.yml)
+[![NetAtlas
+Tests](https://github.com/mirroir/NetAtlas/actions/workflows/tests.yml/badge.svg)](https://github.com/mirroir/NetAtlas/actions/workflows/tests.yml)
 
 > Laboratoire Python / PostgreSQL orienté recherche, tests automatisés,
 > qualité de service et pratiques DevOps.
 
-Le projet met en œuvre une application CLI connectée à PostgreSQL, un moteur de recherche multi-critères, une batterie de *38 tests automatisés avec pytest* et une *intégration continue avec GitHub Actions* permettant d'exécuter automatiquement les contrôles du projet.
+NetAtlas est un projet personnel de laboratoire permettant d'explorer
+des lieux à partir d'un moteur de recherche global multi-critères. Le
+projet associe une base PostgreSQL structurée, une application Python en
+ligne de commande, une interface Web Flask, des tests automatisés et une
+intégration continue avec GitHub Actions.
 
-L'objectif est de faire évoluer progressivement NetAtlas vers une chaîne complète inspirée des pratiques *OPS / DevOps* : développement, gestion des données, tests, contrôle qualité, automatisation, intégration continue et déploiement.
+L'objectif n'est pas seulement de développer une application
+fonctionnelle : NetAtlas sert également de support pratique pour
+travailler l'administration des données, l'automatisation, la qualité
+logicielle, la sécurité et les problématiques d'exploitation proches
+d'un environnement OPS / DevOps.
 
 ## 🎯 Objectifs du projet
 
-- Concevoir et administrer une base PostgreSQL structurée
-- Développer une application Python connectée à la base
-- Construire un moteur de recherche multi-critères
-- Mettre en place des tests automatisés
-- Contrôler la qualité de fonctionnement de l'application
-- Sécuriser les données de configuration et les secrets
-- Faire évoluer progressivement le projet vers une chaîne DevOps
+-   Concevoir et administrer une base PostgreSQL structurée.
+-   Développer une application Python connectée à PostgreSQL.
+-   Proposer une utilisation en ligne de commande et via une interface
+    Web.
+-   Construire un moteur de recherche global multi-critères et tolérant.
+-   Gérer des lieux, catégories, tags, services et commentaires.
+-   Permettre aux utilisateurs authentifiés d'interagir avec les lieux.
+-   Mettre en place une batterie de tests automatisés.
+-   Contrôler la qualité du code et le fonctionnement global de
+    l'application.
+-   Sécuriser les données de configuration et les secrets.
+-   Automatiser les contrôles avec une chaîne d'intégration continue.
+-   Faire évoluer progressivement le projet vers une démarche DevOps
+    complète.
 
 ## 🏗️ Architecture technique
 
-NetAtlas est organisé en plusieurs couches afin de séparer les responsabilités :
+NetAtlas est organisé en plusieurs couches afin de séparer les
+responsabilités :
 
-- *PostgreSQL* : stockage et structuration des données
-- *Python* : logique applicative et accès à la base de données
-- *Interface CLI* : navigation et interrogation des données depuis le terminal
-- *pytest* : validation automatisée du comportement de l'application
-- *Shell / Bash* : contrôle global de l'état du projet
+-   **PostgreSQL** : stockage, relations et intégrité des données.
+-   **Python** : logique applicative et accès à la base de données.
+-   **CLI** : navigation et interaction depuis le terminal.
+-   **Flask** : interface Web de l'application.
+-   **pytest** : validation automatisée du comportement.
+-   **Ruff** : contrôle de la qualité du code Python.
+-   **Shell / Bash** : automatisation des contrôles du projet.
+-   **Git / GitHub** : versionnement et intégration continue.
 
 ### Organisation simplifiée
 
-```text
+``` text
 NetAtlas/
-|-- database/        Scripts SQL et diagnostics
-|-- python/          Application Python
-|   |-- database.py  Accès PostgreSQL et requêtes
-|   |-- main.py      Boucle principale
-|   `-- menu.py      Interface utilisateur
-|-- scripts/         Scripts de contrôle et d'automatisation
-|-- tests/           Tests automatisés
-|-- .gitignore       Protection des fichiers locaux et sensibles
-`-- README.md        Documentation publique du projet
+├── database/          Scripts SQL, schémas et données de test
+├── python/
+│   ├── database.py    Accès PostgreSQL et requêtes
+│   ├── main.py        Boucle principale de l'application CLI
+│   └── menu.py        Interface utilisateur CLI
+├── web/
+│   ├── app.py         Application Web Flask
+│   ├── templates/     Pages HTML
+│   └── static/        Ressources CSS
+├── scripts/           Scripts de contrôle et d'automatisation
+├── tests/             Tests automatisés
+├── .github/           Configuration GitHub Actions
+├── .gitignore         Protection des fichiers locaux et sensibles
+└── README.md          Documentation publique du projet
 ```
 
-## 🔎 Moteur de recherche
+## 🌍 Modèle géographique
 
-NetAtlas dispose d'un moteur de recherche global capable d'interroger plusieurs
-sources de données, notamment les lieux, les villes et les catégories.
+NetAtlas utilise une organisation géographique hiérarchique :
+
+``` text
+Pays
+└── Territoire
+    └── Région
+        └── Ville
+            └── Lieu
+```
+
+Cette branche est exploitée par le moteur de recherche global. Un lieu
+peut ainsi être retrouvé à partir de son pays, de son territoire, de sa
+région ou de sa ville.
+
+## 🔎 Moteur de recherche global
+
+Le moteur de recherche constitue le point central de navigation dans
+NetAtlas. Il interroge notamment le nom du lieu, la ville, la région, le
+territoire, le pays, la catégorie, la description, les tags et les
+services.
 
 La recherche combine :
 
-- ILIKE pour une recherche insensible à la casse
-- pg_trgm et similarity() pour améliorer la tolérance des recherches
-- un score de pertinence pour ordonner les résultats
-- une limitation du nombre de résultats retournés
+-   `ILIKE` pour une recherche insensible à la casse ;
+-   PostgreSQL `pg_trgm` et `similarity()` pour améliorer la tolérance ;
+-   un score de pertinence pour ordonner les résultats ;
+-   une limitation du nombre de résultats retournés.
 
-Cette approche permet d'aller au-delà d'une simple correspondance exacte et
-constitue une première étape vers un moteur de recherche plus tolérant.
+## 🖥️ Interfaces utilisateur
+
+### Interface CLI
+
+L'application en ligne de commande permet d'effectuer une recherche
+globale, sélectionner un lieu, afficher ses détails et accéder aux
+fonctions autorisées selon le type d'utilisateur. Les utilisateurs
+authentifiés peuvent notamment gérer leurs commentaires et ajouter des
+tags aux lieux.
+
+### Interface Web Flask
+
+NetAtlas dispose également d'une interface Web Flask permettant
+notamment :
+
+-   un accès temporaire en consultation ;
+-   la création et la connexion d'un profil utilisateur ;
+-   la recherche globale ;
+-   l'affichage détaillé d'un lieu ;
+-   la consultation des tags, services et commentaires ;
+-   l'ajout de commentaires pour les utilisateurs authentifiés ;
+-   l'enregistrement d'une réaction positive ou négative sur un lieu.
+
+Les interfaces Web et CLI utilisent la même couche d'accès aux données.
 
 ## 🧪 Tests automatisés & qualité de service
 
-La qualité de fonctionnement constitue un axe important du projet NetAtlas.
+La qualité de fonctionnement constitue un axe important du projet.
+NetAtlas dispose actuellement de **206 tests automatisés** avec
+`pytest`, couvrant notamment les fonctions Python, PostgreSQL, le moteur
+de recherche global, les relations et contraintes de la base, les menus
+CLI, les tags, les services, les commentaires, les réactions utilisateur
+et différents scénarios d'erreur.
 
-Une batterie de tests automatisés avec *pytest* permet de contrôler les
-différentes fonctions de l'application et les interactions avec la base de données.
+Une base dédiée, `netatlas_test`, permet d'isoler les tests de la base
+principale. Le schéma SQL et le jeu de données de test permettent de
+reconstruire un environnement reproductible.
 
-Le projet dispose actuellement de :
+Contrôle qualité :
 
-- *38 tests automatisés*
-- tests des fonctions Python
-- tests du moteur de recherche
-- tests de l'environnement
-- tests des permissions PostgreSQL
-- validation des interactions entre l'application et la base de données
+``` bash
+ruff check .
+```
 
-Un script de contrôle global permet également d'exécuter les vérifications
-principales du projet :
+Tests :
 
+``` bash
+pytest -q
+```
 
-````bash 
+Contrôle global :
+
+``` bash
 ./scripts/check_netatlas.sh
-````
-Les contrôles sont également intégrés à *GitHub Actions* afin d'exécuter automatiquement la chaîne de tests dans un environnement CI à chaque évolution du projet.
+```
 
-Le badge affiché en haut de ce README permet de visualiser directement l'état de la dernière exécution de la CI.
+## 🔄 Intégration continue
 
-L'objectif est de disposer progressivement d'un contrôle reproductible permettant
-de détecter rapidement une régression avant une évolution ou un déploiement.
+NetAtlas utilise **GitHub Actions** pour automatiser les contrôles du
+projet. Le badge placé en haut de ce README permet de visualiser
+rapidement l'état de la dernière exécution de la CI.
 
 ## 🔐 Sécurité
 
-Les données locales et sensibles ne sont pas versionnées dans le dépôt public.
+Les données locales et sensibles ne sont pas destinées à être
+versionnées dans le dépôt public. Le `.gitignore` exclut notamment les
+fichiers d'environnement contenant des secrets, l'environnement virtuel
+Python, les caches et les configurations locales.
 
-Le fichier .gitignore permet notamment d'exclure :
+Aucun mot de passe ou jeton d'authentification ne doit être stocké
+directement dans le code source. Les requêtes SQL applicatives utilisent
+des paramètres afin d'éviter la construction directe de requêtes à
+partir des saisies utilisateur.
 
-- les fichiers d'environnement contenant des secrets
-- l'environnement virtuel Python
-- les caches Python et pytest
-- les fichiers de configuration locaux
-- les données de test qui ne doivent pas être publiées
+## ⚙️ Technologies
 
-Aucun mot de passe ou token d'authentification n'est destiné à être stocké
-directement dans le code source.
+-   Python
+-   PostgreSQL
+-   SQL
+-   Flask
+-   pytest
+-   Ruff
+-   Bash / Shell
+-   Git
+-   GitHub
+-   GitHub Actions
+-   Linux
 
-## ⚙️ Démarche DevOps
+## 📖 Glossaire
 
-NetAtlas est également utilisé comme support d'apprentissage pour faire évoluer
-une application vers une approche plus proche des pratiques d'exploitation
-et de production.
+  -----------------------------------------------------------------------
+  Terme                               Signification dans NetAtlas
+  ----------------------------------- -----------------------------------
+  **API**                             Interface permettant à différents
+                                      composants logiciels de communiquer
+                                      entre eux.
 
-La démarche DevOps de NetAtlas s'appuie désormais sur :
+  **CI**                              Intégration continue : exécution
+                                      automatisée des contrôles et tests
+                                      lors des évolutions du projet.
 
-- la gestion des versions avec *Git*
-- l'automatisation des contrôles avec *Bash / Shell*
-- les tests automatisés avec *pytest*
-- l'intégration continue avec *GitHub Actions*
-- le contrôle de l'état de la CI via le badge du projet
+  **CI/CD**                           Pratiques automatisant
+                                      l'intégration et, à terme, la
+                                      livraison ou le déploiement.
 
-Les prochaines évolutions viseront notamment :
+  **CLI**                             Interface en ligne de commande
+                                      utilisée depuis le terminal.
 
-- l'évolution de la chaîne *CI/CD*
-- l'expérimentation avec *GitLab et Jenkins*
-- le déploiement d'une interface Web
-- l'ajout de mécanismes de supervision
-- le renforcement continu de la sécurité et de la qualité de service
+  **DevOps**                          Approche associant développement,
+                                      automatisation, tests, exploitation
+                                      et déploiement.
 
-## 🛠️ Technologies
+  **FK**                              *Foreign Key* : clé étrangère
+                                      garantissant une relation entre
+                                      deux tables.
 
-- Python
-- PostgreSQL
-- SQL
-- pytest
-- Bash / Shell
-- Git
-- GitHub
-- Linux
+  **Flask**                           Framework Python utilisé pour
+                                      construire l'interface Web.
 
-## 🚧 État du projet
+  **Git**                             Système de gestion de versions
+                                      utilisé pour suivre les évolutions
+                                      du projet.
 
-NetAtlas est un projet en évolution continue.
+  **GitHub Actions**                  Service utilisé pour exécuter
+                                      automatiquement la chaîne
+                                      d'intégration continue.
+
+  **ILIKE**                           Opérateur PostgreSQL de recherche
+                                      textuelle insensible à la casse.
+
+  **ON DELETE CASCADE**               Règle supprimant automatiquement
+                                      les enregistrements dépendants d'un
+                                      parent supprimé.
+
+  **PK**                              *Primary Key* : clé primaire
+                                      identifiant de manière unique un
+                                      enregistrement.
+
+  **pg_trgm**                         Extension PostgreSQL permettant
+                                      notamment de mesurer la similarité
+                                      entre chaînes de caractères.
+
+  **PostgreSQL**                      Système de gestion de base de
+                                      données relationnelle utilisé par
+                                      NetAtlas.
+
+  **pytest**                          Framework Python utilisé pour les
+                                      tests automatisés.
+
+  **Ruff**                            Outil de contrôle et d'analyse de
+                                      la qualité du code Python.
+
+  **SQL**                             Langage utilisé pour créer,
+                                      interroger et administrer les
+                                      données relationnelles.
+
+  **Territoire**                      Niveau géographique intermédiaire
+                                      permettant notamment de rattacher
+                                      La Réunion à la France avant ses
+                                      régions.
+
+  **Test automatisé**                 Vérification exécutable confirmant
+                                      qu'un comportement attendu reste
+                                      valide.
+  -----------------------------------------------------------------------
+
+## 📌 État du projet
 
 La version actuelle comprend notamment :
 
-- une base PostgreSQL fonctionnelle
-- une application Python en ligne de commande
-- une navigation par menu
-- une recherche par villes et lieux
-- une recherche globale multi-critères
-- une recherche tolérante avec pg_trgm
-- une batterie de tests automatisés
-- un script de contrôle global
-- une intégration continue opérationnelle avec *GitHub Actions*
-- l'exécution automatisée des *38 tests* dans la CI
-- un dépôt Git public sécurisé
+-   une base PostgreSQL fonctionnelle et structurée ;
+-   une application Python en ligne de commande ;
+-   une interface Web Flask ;
+-   une gestion de profils et de sessions utilisateur ;
+-   un accès temporaire en consultation ;
+-   un moteur de recherche global multi-critères ;
+-   une recherche tolérante avec `pg_trgm` ;
+-   une hiérarchie pays → territoire → région → ville → lieu ;
+-   la gestion des tags et services ;
+-   un système de commentaires ;
+-   des réactions positives ou négatives sur les lieux ;
+-   **206 tests automatisés** ;
+-   un contrôle qualité avec Ruff ;
+-   un script de contrôle global ;
+-   une intégration continue avec GitHub Actions ;
+-   un dépôt Git public sécurisé.
 
 ## 🗺️ Roadmap
 
-Les prochaines étapes prévues sont :
+1.  Finaliser la consolidation fonctionnelle et documentaire de
+    NetAtlas.
+2.  Maintenir et enrichir la couverture des tests automatisés.
+3.  Poursuivre la simplification et le nettoyage du modèle de données.
+4.  Renforcer la configuration et la sécurité avant un environnement
+    hors développement.
+5.  Faire évoluer GitHub Actions vers une chaîne CI/CD plus complète.
+6.  Expérimenter des pratiques DevOps complémentaires avec GitLab et
+    Jenkins.
+7.  Ajouter progressivement supervision et observabilité.
+8.  Étudier les tests de charge, les performances et la consommation
+    mémoire.
+9.  Continuer à renforcer la qualité de service et la reproductibilité.
 
-1. Consolider la documentation technique
-2. Étendre progressivement la couverture des tests automatisés
-3. Faire évoluer la CI GitHub Actions vers une chaîne CI/CD complète
-4. Expérimenter une chaîne DevOps avec GitLab et Jenkins
-5. Créer une interface Web pour NetAtlas
-6. Ajouter des mécanismes de supervision et d'observabilité
-7. Continuer à renforcer les contrôles de sécurité et de qualité de service
+------------------------------------------------------------------------
 
----
-
-*NetAtlas* — Projet personnel de laboratoire orienté
-*Python · PostgreSQL · Tests · Qualité de service · DevOps*
+**NetAtlas --- Projet personnel de laboratoire orienté Python ·
+PostgreSQL · Flask · Tests · Qualité de service · OPS / DevOps**

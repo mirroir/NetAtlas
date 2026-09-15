@@ -27,7 +27,7 @@
             <h1>Rechercher dans NetAtlas</h1>
 
             <p class="recherche-description">
-                Pays, ville, lieu ou catégorie
+                Pays, territoire, région, ville, lieu ou catégorie
             </p>
 
             <form method="POST" class="recherche-formulaire">
@@ -47,13 +47,13 @@
             </form>
 
             {% if terme %}
-
                 <section class="resultats-recherche">
+
                     <h2>Résultats pour « {{ terme }} »</h2>
 
-                    {% if resultats %}
+                    {% if resultats_principaux %}
 
-                        {% for resultat in resultats %}
+                        {% for resultat in resultats_principaux %}
                             <article class="resultat-recherche">
 
                                 <h3>
@@ -104,33 +104,133 @@
 
                     {% else %}
                         <p class="aucun-resultat">
-                            Aucun résultat trouvé.
+                            Aucun résultat suffisamment pertinent trouvé.
                         </p>
                     {% endif %}
-                </section>
 
+
+                    {% if resultats_secondaires %}
+
+                        <div class="resultats-secondaires">
+
+                            <p>
+                                {{ resultats_secondaires|length }}
+                                résultat(s) moins pertinent(s) disponible(s).
+                            </p>
+
+                            <button
+                                type="button"
+                                id="afficher-autres-resultats"
+                            >
+                                Afficher les autres résultats
+                            </button>
+
+                        </div>
+
+
+                        <div id="autres-resultats" hidden>
+
+                            {% for resultat in resultats_secondaires %}
+                                <article class="resultat-recherche">
+
+                                    <h3>
+                                        <a
+                                            href="{{ url_for(
+                                                'detail_lieu',
+                                                place_id=resultat[0],
+                                                origine=origine
+                                            ) }}"
+                                        >
+                                            {{ resultat[1] }}
+                                        </a>
+                                    </h3>
+
+                                    <p>
+                                        <strong>Ville :</strong>
+                                        {{ resultat[2] }}
+                                    </p>
+
+                                    <p>
+                                        <strong>Catégorie :</strong>
+                                        {{ resultat[3] }}
+                                    </p>
+
+                                    {% if resultat[4] %}
+                                        <p>
+                                            <strong>Adresse :</strong>
+                                            {{ resultat[4] }}
+                                        </p>
+                                    {% endif %}
+
+                                    {% if resultat[5] %}
+                                        <p>
+                                            <strong>Téléphone :</strong>
+                                            {{ resultat[5] }}
+                                        </p>
+                                    {% endif %}
+
+                                    {% if resultat[6] %}
+                                        <p>
+                                            <strong>Site web :</strong>
+                                            {{ resultat[6] }}
+                                        </p>
+                                    {% endif %}
+
+                                </article>
+                            {% endfor %}
+
+                        </div>
+
+                    {% endif %}
+
+                </section>
             {% endif %}
 
+
             <div class="recherche-retour">
+
                 {% if origine == "utilisateur" %}
+
                     <a
                         class="choix-acces"
                         href="{{ url_for('espace_utilisateur') }}"
                     >
                         Retour
                     </a>
+
                 {% else %}
+
                     <a
                         class="choix-acces"
                         href="{{ url_for('temporaire') }}"
                     >
                         Retour
                     </a>
+
                 {% endif %}
+
             </div>
 
         </section>
     </main>
+
+
+    <script>
+        const boutonAutres = document.getElementById(
+            "afficher-autres-resultats"
+        );
+
+        const autresResultats = document.getElementById(
+            "autres-resultats"
+        );
+
+        if (boutonAutres && autresResultats) {
+            boutonAutres.addEventListener("click", () => {
+                autresResultats.hidden = false;
+                boutonAutres.hidden = true;
+            });
+        }
+    </script>
 
 </body>
 </html>

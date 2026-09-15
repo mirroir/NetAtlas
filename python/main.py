@@ -1,17 +1,10 @@
 from getpass import getpass
 
 from menu import (
-    afficher_categories,
-    afficher_detail_lieu,
-    afficher_lieux_par_ville,
     afficher_menu,
     afficher_menu_connexion,
     afficher_menu_temporaire,
-    afficher_pays,
     afficher_recherche_globale,
-    afficher_recherche_ville,
-    afficher_villes,
-    ajouter_tag_a_lieu,
     menu_mes_commentaires,
 )
 from psycopg.errors import UniqueViolation
@@ -128,27 +121,9 @@ def menu_temporaire():
         choix = input("Votre choix : ").strip()
 
         if choix == "1":
-            afficher_categories()
-
-        elif choix == "2":
-            afficher_pays()
-
-        elif choix == "3":
-            afficher_villes()
-
-        elif choix == "4":
-            afficher_recherche_ville()
-
-        elif choix == "5":
-            afficher_lieux_par_ville()
-
-        elif choix == "6":
             afficher_recherche_globale()
 
-        elif choix == "7":
-            afficher_detail_lieu()
-
-        elif choix == "0":
+        elif choix == "2":
             print("\nRetour au menu d'accueil.\n")
             return
 
@@ -160,36 +135,16 @@ def menu_principal(user_id):
     while True:
         afficher_menu()
 
-        choix = input("Fait ton choix coco : ")
+        choix = input("Votre choix : ").strip()
 
         if choix == "1":
-            afficher_categories()
+            afficher_recherche_globale(user_id=user_id)
 
         elif choix == "2":
-            afficher_pays()
-
-        elif choix == "3":
-            afficher_villes()
-
-        elif choix == "4":
-            afficher_recherche_ville()
-
-        elif choix == "5":
-            afficher_lieux_par_ville()
-
-        elif choix == "6":
-            afficher_recherche_globale()
-
-        elif choix == "7":
-            afficher_detail_lieu()
-
-        elif choix == "8":
-            ajouter_tag_a_lieu()
-
-        elif choix == "9":
             menu_mes_commentaires(user_id)
 
-        elif choix == "10":
+
+        elif choix == "3":
             print("\nDéconnexion réussie. Retour à l'accueil.\n")
             return
 

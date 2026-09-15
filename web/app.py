@@ -186,6 +186,8 @@ def recherche_globale_web(origine):
         return redirect(url_for("connexion_utilisateur"))
 
     resultats = []
+    resultats_principaux = []
+    resultats_secondaires =[]
     terme = ""
 
     if request.method == "POST":
@@ -194,9 +196,26 @@ def recherche_globale_web(origine):
         if terme:
             resultats = rechercher_global(terme)
 
+        seuil_affichage = 0.50
+
+    resultats_principaux = [
+        resultat
+        for resultat in resultats
+        if resultat[7] >= seuil_affichage
+    ]
+
+    resultats_secondaires = [
+        resultat
+        for resultat in resultats
+        if resultat[7] < seuil_affichage
+    ]
+
+
     return render_template(
         "recherche_globale.html",
         resultats=resultats,
+        resultats_principaux=resultats_principaux,
+        resultats_secondaires=resultats_secondaires,
         terme=terme,
         origine=origine,
     )

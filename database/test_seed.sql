@@ -9,11 +9,18 @@ INSERT INTO pays
 VALUES
     (1, 'France', 'FR', 'FRA', 'Europe', 'Paris', 'EUR', 'Français', 68000000);
 
+-- Territoire
+INSERT INTO territoires
+    (id, pays_id, name, type)
+VALUES
+    (1, 1, 'La Réunion', 'Département et région d''outre-mer');
+
+
 -- Région
 INSERT INTO regions
     (id, country_id, name, territoire_id)
 VALUES
-    (1, 1, 'La Réunion', NULL);
+    (1, 1, 'La Réunion', 1);
 
 -- Ville utilisée par les tests
 INSERT INTO villes
