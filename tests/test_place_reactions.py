@@ -208,3 +208,44 @@ def test_get_user_reaction_dislike():
     assert resultat == -1
 
     supprimer_reaction_test()
+
+def test_enregistrer_reaction_erreur_sql(monkeypatch):
+    class FauxCurseur:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, *args, **kwargs):
+            raise psycopg2.Error("Erreur SQL simulée")
+
+    class FausseConnexion:
+        def __init__(self):
+            self.rollback_effectue = False
+            self.fermeture_effectuee = False
+
+        def cursor(self):
+            return FauxCurseur()
+
+        def commit(self):
+            pass
+
+        def rollback(self):
+            self.rollback_effectue = True
+
+        def close(self):
+            self.fermeture_effectuee = True
+
+    fausse_connexion = FausseConnexion()
+
+    monkeypatch.setattr(
+        "database.connexion_db",
+        lambda: fausse_connexion,
+    )
+
+    with pytest.raises(psycopg2.Error, match="Erreur SQL simulée"):
+        enregistrer_reaction(1, 1, 1)
+
+    assert fausse_connexion.rollback_effectue is True
+    assert fausse_connexion.fermeture_effectuee is True

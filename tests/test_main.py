@@ -375,4 +375,37 @@ def test_main_acces_temporaire(monkeypatch):
 
 
 
+def test_menu_temporaire_recherche_globale(monkeypatch):
+    appels = []
+
+    monkeypatch.setattr(
+        main,
+        "afficher_recherche_globale",
+        lambda: appels.append("recherche"),
+    )
+
+    choix = iter(["1", "2"])
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    main.menu_temporaire()
+
+    assert appels == ["recherche"]
+
+
+def test_menu_principal_recherche_globale(monkeypatch):
+    appels = []
+
+    monkeypatch.setattr(
+        main,
+        "afficher_recherche_globale",
+        lambda user_id=None: appels.append(user_id),
+    )
+
+    choix = iter(["1", "3"])
+    monkeypatch.setattr("builtins.input", lambda _: next(choix))
+
+    main.menu_principal(42)
+
+    assert appels == [42]
+
 
