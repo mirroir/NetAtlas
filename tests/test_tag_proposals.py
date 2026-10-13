@@ -136,16 +136,40 @@ def test_analyser_proposition_tag_nouveau():
     assert resultat["tag"] is None
     assert resultat["similaires"] == []
 
+
 def test_rechercher_tag_proposal_pending():
-    resultat = rechercher_tag_proposal_pending(
+    proposal_id = creer_tag_proposal(
         1,
         3,
-        "  PRODUCTEUR   LOCAUX  ",
+        "Producteur locaux",
         1,
     )
 
-    assert resultat is not None
-    assert resultat[1] == "Producteur locaux"
+    connexion = connexion_db()
+
+    try:
+        resultat = rechercher_tag_proposal_pending(
+            1,
+            3,
+            " PRODUCTEUR LOCAUX ",
+            1,
+        )
+
+        assert resultat is not None
+        assert resultat[0] == proposal_id
+        assert resultat[1] == "Producteur locaux"
+
+    finally:
+        try:
+            with connexion.cursor() as curseur:
+                curseur.execute(
+                    "DELETE FROM tag_proposals WHERE id = %s;",
+                    (proposal_id,),
+                )
+
+            connexion.commit()
+        finally:
+            connexion.close()
 
 def test_rechercher_tag_proposal_pending_inexistant():
     resultat = rechercher_tag_proposal_pending(

@@ -57,3 +57,128 @@ def test_contexte_recherche_pays_remonte_aux_categories():
 
     assert "Marché" in noms_categories
 
+def test_contexte_recherche_erreur_sql(monkeypatch):
+    import database
+
+    class FauxCurseur:
+        def execute(self, requete, parametres):
+            raise database.psycopg.Error("Erreur SQL simulée")
+
+        def close(self):
+            pass
+
+    class FausseConnexion:
+        def __init__(self):
+            self.fermee = False
+
+        def cursor(self):
+            return FauxCurseur()
+
+        def close(self):
+            self.fermee = True
+
+    connexion = FausseConnexion()
+
+    monkeypatch.setattr(database, "connexion_db", lambda: connexion)
+
+    resultat = database.get_contexte_recherche("Marché")
+
+    assert isinstance(resultat, dict)
+    assert connexion.fermee is True
+
+def test_get_territoires_par_categorie_et_pays_erreur_sql(monkeypatch):
+    import database
+
+    class FauxCurseur:
+        def execute(self, requete, parametres):
+            raise database.psycopg.Error("Erreur SQL simulée")
+
+        def close(self):
+            pass
+
+    class FausseConnexion:
+        def __init__(self):
+            self.fermee = False
+
+        def cursor(self):
+            return FauxCurseur()
+
+        def close(self):
+            self.fermee = True
+
+    connexion = FausseConnexion()
+
+    monkeypatch.setattr(database, "connexion_db", lambda: connexion)
+
+    resultat = database.get_territoires_par_categorie_et_pays(
+        "Marché", "France"
+    )
+
+    assert resultat == []
+    assert connexion.fermee is True
+
+
+def test_get_villes_par_categorie_pays_territoire_erreur_sql(monkeypatch):
+    import database
+
+    class FauxCurseur:
+        def execute(self, requete, parametres):
+            raise database.psycopg.Error("Erreur SQL simulée")
+
+        def close(self):
+            pass
+
+    class FausseConnexion:
+        def __init__(self):
+            self.fermee = False
+
+        def cursor(self):
+            return FauxCurseur()
+
+        def close(self):
+            self.fermee = True
+
+    connexion = FausseConnexion()
+
+    monkeypatch.setattr(database, "connexion_db", lambda: connexion)
+
+    resultat = database.get_villes_par_categorie_pays_territoire(
+        "Marché", "France", "La Réunion"
+    )
+
+    assert resultat == []
+    assert connexion.fermee is True
+
+
+def test_get_lieux_par_categorie_pays_territoire_ville_erreur_sql(monkeypatch):
+    import database
+
+    class FauxCurseur:
+        def execute(self, requete, parametres):
+            raise database.psycopg.Error("Erreur SQL simulée")
+
+        def close(self):
+            pass
+
+    class FausseConnexion:
+        def __init__(self):
+            self.fermee = False
+
+        def cursor(self):
+            return FauxCurseur()
+
+        def close(self):
+            self.fermee = True
+
+    connexion = FausseConnexion()
+
+    monkeypatch.setattr(database, "connexion_db", lambda: connexion)
+
+    resultat = database.get_lieux_par_categorie_pays_territoire_ville(
+        "Marché", "France", "La Réunion", "Saint-Pierre"
+    )
+
+    assert resultat == []
+    assert connexion.fermee is True
+
+
