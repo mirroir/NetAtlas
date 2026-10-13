@@ -1,24 +1,32 @@
 try:
     from .database import (
         ajouter_avis,
+        ajouter_tag_lieu,
         get_avis_by_place,
         get_avis_by_user,
+        get_place_category_id,
         get_place_details,
         get_place_services,
         get_place_tags,
+        get_place_tags_with_ids,
         get_places_with_ids,
+        get_tags_by_category,
         rechercher_global,
         supprimer_avis,
     )
 except ImportError:
     from database import (
         ajouter_avis,
+        ajouter_tag_lieu,
         get_avis_by_place,
         get_avis_by_user,
+        get_place_category_id,
         get_place_details,
         get_place_services,
         get_place_tags,
+        get_place_tags_with_ids,
         get_places_with_ids,
+        get_tags_by_category,
         rechercher_global,
         supprimer_avis,
     )
@@ -165,7 +173,67 @@ def afficher_recherche_globale(user_id=None):
         return
 
     afficher_place(place)
+    
+    if user_id is not None:
+       print("\n1 - Ajouter un tag à ce lieu")
+       print("0 - Retour")
 
+       choix_action = input("\nVotre choix : ").strip()
+
+       if choix_action == "1":
+           ajouter_tag_a_lieu(place_id)
+
+def ajouter_tag_a_lieu(place_id):
+    category_id = get_place_category_id(place_id)
+
+    if category_id is None:
+        print("\nImpossible de déterminer la catégorie du lieu.\n")
+        return
+
+    tags_categorie = get_tags_by_category(category_id)
+    tags_lieu = get_place_tags_with_ids(place_id)
+
+    tags_deja_associes = {tag_id for tag_id, _ in tags_lieu}
+
+    tags_disponibles = [
+        (tag_id, nom)
+        for tag_id, nom in tags_categorie
+        if tag_id not in tags_deja_associes
+    ]
+
+    if not tags_disponibles:
+        print("\nAucun tag disponible pour ce lieu.\n")
+        return
+
+    print("\n=== TAGS DISPONIBLES ===\n")
+
+    for numero, (_, nom) in enumerate(tags_disponibles, start=1):
+        print(f"{numero} - {nom}")
+
+    print("\n0 - Retour")
+
+    choix = input("\nChoisissez un tag : ").strip()
+
+    if choix == "0":
+        return
+
+    if not choix.isdigit():
+        print("\nChoix invalide.\n")
+        return
+
+    index = int(choix) - 1
+
+    if not 0 <= index < len(tags_disponibles):
+        print("\nChoix invalide.\n")
+        return
+
+    tag_id = tags_disponibles[index][0]
+    ajoute = ajouter_tag_lieu(place_id, tag_id)
+
+    if ajoute:
+        print("\nTag ajouté au lieu avec succès.\n")
+    else:
+        print("\nCe tag est déjà associé au lieu.\n")
 
 
 def afficher_place(place):

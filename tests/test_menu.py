@@ -462,4 +462,35 @@ def test_recherche_globale_selection_secondaire_lieu_introuvable(
 
     assert "Aucun lieu trouvé." in sortie
 
+def test_recherche_globale_utilisateur_connecte_ajoute_tag(monkeypatch):
+    donnees = [
+        (
+            4,
+            "Marché de Saint-Pierre",
+            "Saint-Pierre",
+            "Agriculture",
+            "Saint-Pierre",
+            None,
+            None,
+            0.79,
+        )
+    ]
 
+    place = ("lieu-test",)
+    place_ids = []
+
+    reponses = iter(["Réunion", "1", "1"])
+
+    monkeypatch.setattr("builtins.input", lambda _: next(reponses))
+    monkeypatch.setattr(menu, "rechercher_global", lambda _: donnees)
+    monkeypatch.setattr(menu, "get_place_details", lambda _: place)
+    monkeypatch.setattr(menu, "afficher_place", lambda _: None)
+    monkeypatch.setattr(
+        menu,
+        "ajouter_tag_a_lieu",
+        lambda place_id: place_ids.append(place_id),
+    )
+
+    menu.afficher_recherche_globale(user_id=1)
+
+    assert place_ids == [4]

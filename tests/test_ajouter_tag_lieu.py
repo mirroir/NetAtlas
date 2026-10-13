@@ -68,5 +68,3 @@ def test_ajouter_tag_lieu_erreur_sql():
     curseur.close.assert_called_once()
     connexion.close.assert_called_once()
 
-
-

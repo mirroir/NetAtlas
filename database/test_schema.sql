@@ -385,6 +385,42 @@ CREATE TABLE public.place_tags (
 
 
 --
+-- Name: tag_proposals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tag_proposals (
+    id integer NOT NULL,
+    place_id integer NOT NULL,
+    user_id integer NOT NULL,
+    proposed_name character varying(150) NOT NULL,
+    category_id integer NOT NULL,
+    status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    moderated_by integer,
+    moderated_at timestamp without time zone
+);
+
+--
+-- Name: tag_proposals_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tag_proposals_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tag_proposals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tag_proposals_id_seq OWNED BY public.tag_proposals.id;
+
+
+--
 -- Name: places; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -846,6 +882,14 @@ ALTER TABLE ONLY public.places ALTER COLUMN id SET DEFAULT nextval('public.place
 
 
 --
+-- Name: tag_proposals id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ALTER COLUMN id SET DEFAULT nextval('public.tag_proposals_id_seq'::regclass);
+
+
+--
 -- Name: produits id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -1059,6 +1103,26 @@ ALTER TABLE ONLY public.place_services
 ALTER TABLE ONLY public.place_tags
     ADD CONSTRAINT place_tags_pkey PRIMARY KEY (place_id, tag_id);
 
+
+--
+-- Name: tag_proposals tag_proposals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tag_proposals tag_proposals_status_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_status_check
+    CHECK (status::text = ANY (ARRAY[
+        'pending'::character varying,
+        'approved'::character varying,
+        'rejected'::character varying
+    ]::text[]));
 
 --
 -- Name: places places_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1348,6 +1412,49 @@ ALTER TABLE ONLY public.place_services
 ALTER TABLE ONLY public.place_tags
     ADD CONSTRAINT place_tags_place_id_fkey FOREIGN KEY (place_id) REFERENCES public.places(id) ON DELETE CASCADE;
 
+
+--
+-- Name: tag_proposals tag_proposals_place_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_place_fk
+    FOREIGN KEY (place_id)
+    REFERENCES public.places(id)
+    ON DELETE CASCADE;
+
+
+--
+-- Name: tag_proposals tag_proposals_user_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_user_fk
+    FOREIGN KEY (user_id)
+    REFERENCES public.users(id)
+    ON DELETE CASCADE;
+
+
+--
+-- Name: tag_proposals tag_proposals_category_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_category_fk
+    FOREIGN KEY (category_id)
+    REFERENCES public.categories(id)
+    ON DELETE RESTRICT;
+
+
+--
+-- Name: tag_proposals tag_proposals_moderator_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_moderator_fk
+    FOREIGN KEY (moderated_by)
+    REFERENCES public.users(id)
+    ON DELETE SET NULL;
 
 --
 -- Name: place_tags place_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

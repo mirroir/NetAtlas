@@ -1,236 +1,317 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+	<head>
+		<meta charset="UTF-8">
+		<meta
+				name="viewport"
+				content="width=device-width, initial-scale=1.0"
+				>
 
-    <title>Recherche - NetAtlas</title>
+				<title>Recherche - NetAtlas</title>
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+				<link
+						rel="stylesheet"
+						href="{{ url_for('static', filename='style.css') }}"
+						>
+	</head>
 
-<body>
+				<body>
 
-    <a class="logo logo-home" href="{{ url_for('accueil') }}">
-        NETATLAS
-    </a>
+					<a class="logo logo-home" href="{{ url_for('accueil') }}">
+						NETATLAS
+					</a>
 
-    <main class="page-acces">
-        <section class="recherche-principale">
+					<main class="page-acces">
+						<section class="recherche-principale">
 
-            <h1>Rechercher dans NetAtlas</h1>
+							<h1>Rechercher dans Netatlas</h1>
 
-            <p class="recherche-description">
-                Pays, territoire, région, ville, lieu ou catégorie
-            </p>
+							<p class="recherche-description">
+							Pays, territoire, région, ville, lieu ou catégorie
+							</p>
 
-            <form method="POST" class="recherche-formulaire">
-                <input
-                    type="text"
-                    id="terme"
-                    name="terme"
-                    value="{{ terme }}"
-                    placeholder="Que recherchez-vous ?"
-                    autocomplete="off"
-                    required
-                >
+							<form method="POST" class="recherche-formulaire">
+								<input
+										type="text"
+										id="terme"
+										name="terme"
+										value="{{ terme }}"
+										placeholder="Que recherchez-vous ?"
+										autocomplete="off"
+										required
+										>
 
-                <button type="submit">
-                    Rechercher
-                </button>
-            </form>
+										<button type="submit">
+											Rechercher
+										</button>
+							</form>
 
-            {% if terme %}
-                <section class="resultats-recherche">
+							{% if terme %}
+							<section class="resultats-recherche">
 
-                    <h2>Résultats pour « {{ terme }} »</h2>
+								<h2>Résultats pour « {{ terme }} »</h2>
+								{% if pays_categorie and not pays_selectionne %}
 
-                    {% if resultats_principaux %}
+								<div class="pays-categorie">
+									<p><strong>Pays disponibles :</strong></p>
 
-                        {% for resultat in resultats_principaux %}
-                            <article class="resultat-recherche">
+									{% for pays in pays_categorie %}
+									<form method="POST">
+										<input type="hidden" name="terme" value="{{ terme }}">
+										<input type="hidden" name="pays" value="{{ pays[1] }}">
 
-                                <h3>
-                                    <a
-                                        href="{{ url_for(
-                                            'detail_lieu',
-                                            place_id=resultat[0],
-                                            origine=origine
-                                        ) }}"
-                                    >
-                                        {{ resultat[1] }}
-                                    </a>
-                                </h3>
+										<button type="submit">
+											{{ pays[1] }}
+										</button>
+									</form>
+									{% endfor %}
+								</div>
 
-                                <p>
-                                    <strong>Ville :</strong>
-                                    {{ resultat[2] }}
-                                </p>
+								{% elif territoires_categorie and not territoire_selectionne %}
 
-                                <p>
-                                    <strong>Catégorie :</strong>
-                                    {{ resultat[3] }}
-                                </p>
+								<div class="territoires-categorie">
+									<p><strong>Territoires disponibles :</strong></p>
 
-                                {% if resultat[4] %}
-                                    <p>
-                                        <strong>Adresse :</strong>
-                                        {{ resultat[4] }}
-                                    </p>
-                                {% endif %}
+									{% for territoire in territoires_categorie %}
+									<form method="POST">
+										<input type="hidden" name="terme" value="{{ terme }}">
+										<input
+												type="hidden"
+												name="pays"
+												value="{{ pays_selectionne }}"
+												>
+												<input
+														type="hidden"
+														name="territoire"
+														value="{{ territoire[1] }}"
+														>
 
-                                {% if resultat[5] %}
-                                    <p>
-                                        <strong>Téléphone :</strong>
-                                        {{ resultat[5] }}
-                                    </p>
-                                {% endif %}
+														<button type="submit">
+															{{ territoire[1] }}
+														</button>
+									</form>
+										{% endfor %}
+								</div>
 
-                                {% if resultat[6] %}
-                                    <p>
-                                        <strong>Site web :</strong>
-                                        {{ resultat[6] }}
-                                    </p>
-                                {% endif %}
+								{% elif villes_categorie and not ville_selectionnee %}
 
-                            </article>
-                        {% endfor %}
+								<div class="villes-categorie">
+									<p><strong>Villes disponibles :</strong></p>
 
-                    {% else %}
-                        <p class="aucun-resultat">
-                            Aucun résultat suffisamment pertinent trouvé.
-                        </p>
-                    {% endif %}
+									{% for ville in villes_categorie %}
+									<form method="POST">
+										<input type="hidden" name="terme" value="{{ terme }}">
+										<input type="hidden" name="pays" value="{{ pays_selectionne }}">
+										<input
+												type="hidden"
+												name="territoire"
+												value="{{ territoire_selectionne }}"
+												>
+												<input type="hidden" name="ville" value="{{ ville[1] }}">
 
+												<button type="submit">
+													{{ ville[1] }}
+												</button>
+									</form>
+									{% endfor %}
+								</div>
 
-                    {% if resultats_secondaires %}
+								{% elif lieux_categorie %}
 
-                        <div class="resultats-secondaires">
+								<div class="raffinement-lieux">
+									<p><strong>Lieu(x) disponible(s) :</strong></p>
 
-                            <p>
-                                {{ resultats_secondaires|length }}
-                                résultat(s) moins pertinent(s) disponible(s).
-                            </p>
+									{% for lieu in lieux_categorie %}
+									<p>
+									<a href="{{ url_for('detail_lieu',place_id=lieu[0],origine=origine) }}">
+										{{ lieu[1] }}
 
-                            <button
-                                type="button"
-                                id="afficher-autres-resultats"
-                            >
-                                Afficher les autres résultats
-                            </button>
+									</a>
+									</p>
+									{% endfor %}
+								</div>
 
-                        </div>
+								{% elif resultats_principaux %}
 
+								{% for resultat in resultats_principaux %}
+								<article class="resultat-recherche">
 
-                        <div id="autres-resultats" hidden>
+									<h3>
+										<a
+												href="{{ url_for(
+												      'detail_lieu',
+												      place_id=resultat[0],
+												      origine=origine
+												      ) }}"
+												>
+												{{ resultat[1] }}
+										</a>
+									</h3>
 
-                            {% for resultat in resultats_secondaires %}
-                                <article class="resultat-recherche">
+									<p>
+									<strong>Ville :</strong>
+									{{ resultat[2] }}
+									</p>
 
-                                    <h3>
-                                        <a
-                                            href="{{ url_for(
-                                                'detail_lieu',
-                                                place_id=resultat[0],
-                                                origine=origine
-                                            ) }}"
-                                        >
-                                            {{ resultat[1] }}
-                                        </a>
-                                    </h3>
+									<p>
+									<strong>Catégorie :</strong>
+									{{ resultat[3] }}
+									</p>
 
-                                    <p>
-                                        <strong>Ville :</strong>
-                                        {{ resultat[2] }}
-                                    </p>
+									{% if resultat[4] %}
+									<p>
+									<strong>Adresse :</strong>
+									{{ resultat[4] }}
+									</p>
+									{% endif %}
 
-                                    <p>
-                                        <strong>Catégorie :</strong>
-                                        {{ resultat[3] }}
-                                    </p>
+									{% if resultat[5] %}
+									<p>
+									<strong>Téléphone :</strong>
+									{{ resultat[5] }}
+									</p>
+									{% endif %}
 
-                                    {% if resultat[4] %}
-                                        <p>
-                                            <strong>Adresse :</strong>
-                                            {{ resultat[4] }}
-                                        </p>
-                                    {% endif %}
+									{% if resultat[6] %}
+									<p>
+									<strong>Site web :</strong>
+									{{ resultat[6] }}
+									</p>
+									{% endif %}
 
-                                    {% if resultat[5] %}
-                                        <p>
-                                            <strong>Téléphone :</strong>
-                                            {{ resultat[5] }}
-                                        </p>
-                                    {% endif %}
+								</article>
+								{% endfor %}
 
-                                    {% if resultat[6] %}
-                                        <p>
-                                            <strong>Site web :</strong>
-                                            {{ resultat[6] }}
-                                        </p>
-                                    {% endif %}
+								{% else %}
 
-                                </article>
-                            {% endfor %}
+								<p class="aucun-resultat">
+								Aucun résultat suffisamment pertinent trouvé.
+								</p>
 
-                        </div>
+								{% endif %}
 
-                    {% endif %}
+								{% if resultats_secondaires %}
 
-                </section>
-            {% endif %}
+								<div class="resultats-secondaires">
 
+									<p>
+									{{ resultats_secondaires|length }}
+									résultat(s) moins pertinent(s) disponible(s).
+									</p>
 
-            <div class="recherche-retour">
+									<button
+											type="button"
+											id="afficher-autres-resultats"
+											>
+											Afficher les autres résultats
+									</button>
 
-                {% if origine == "utilisateur" %}
-
-                    <a
-                        class="choix-acces"
-                        href="{{ url_for('espace_utilisateur') }}"
-                    >
-                        Retour
-                    </a>
-
-                {% else %}
-
-                    <a
-                        class="choix-acces"
-                        href="{{ url_for('temporaire') }}"
-                    >
-                        Retour
-                    </a>
-
-                {% endif %}
-
-            </div>
-
-        </section>
-    </main>
+								</div>
 
 
-    <script>
-        const boutonAutres = document.getElementById(
-            "afficher-autres-resultats"
-        );
+								<div id="autres-resultats" hidden>
 
-        const autresResultats = document.getElementById(
-            "autres-resultats"
-        );
+									{% for resultat in resultats_secondaires %}
+									<article class="resultat-recherche">
 
-        if (boutonAutres && autresResultats) {
-            boutonAutres.addEventListener("click", () => {
-                autresResultats.hidden = false;
-                boutonAutres.hidden = true;
-            });
-        }
-    </script>
+										<h3>
+											<a
+													href="{{ url_for(
+													      'detail_lieu',
+													      place_id=resultat[0],
+													      origine=origine
+													      ) }}"
+													>
+													{{ resultat[1] }}
+											</a>
+										</h3>
 
-</body>
+										<p>
+										<strong>Ville :</strong>
+										{{ resultat[2] }}
+										</p>
+
+										<p>
+										<strong>Catégorie :</strong>
+										{{ resultat[3] }}
+										</p>
+
+										{% if resultat[4] %}
+										<p>
+										<strong>Adresse :</strong>
+										{{ resultat[4] }}
+										</p>
+										{% endif %}
+
+										{% if resultat[5] %}
+										<p>
+										<strong>Téléphone :</strong>
+										{{ resultat[5] }}
+										</p>
+										{% endif %}
+
+										{% if resultat[6] %}
+										<p>
+										<strong>Site web :</strong>
+										{{ resultat[6] }}
+										</p>
+										{% endif %}
+
+									</article>
+									{% endfor %}
+
+								</div>
+
+								{% endif %}
+
+							</section>
+							{% endif %}
+
+
+							<div class="recherche-retour">
+
+								{% if origine == "utilisateur" %}
+
+								<a
+										class="choix-acces"
+										href="{{ url_for('recherche_globale_web',origine=origine) }}"
+										>
+										Retour
+								</a>
+
+									{% else %}
+
+									<a
+											class="choix-acces"
+											href="{{ url_for('recherche_globale_web',origine=origine) }}"
+											>
+											Retour
+									</a>
+
+										{% endif %}
+
+							</div>
+
+						</section>
+					</main>
+
+
+					<script>
+						const boutonAutres = document.getElementById(
+							"afficher-autres-resultats"
+						);
+
+						const autresResultats = document.getElementById(
+							"autres-resultats"
+						);
+
+						if (boutonAutres && autresResultats) {
+							boutonAutres.addEventListener("click", () => {
+								autresResultats.hidden = false;
+								boutonAutres.hidden = true;
+							});
+						}
+					</script>
+
+				</body>
 </html>

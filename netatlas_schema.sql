@@ -427,6 +427,57 @@ CREATE TABLE public.place_tags (
 
 ALTER TABLE public.place_tags OWNER TO postgres;
 
+
+--
+-- Name: tag_proposals; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.tag_proposals (
+    id integer NOT NULL,
+    place_id integer NOT NULL,
+    user_id integer NOT NULL,
+    proposed_name character varying(150) NOT NULL,
+    category_id integer NOT NULL,
+    status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    moderated_by integer,
+    moderated_at timestamp without time zone,
+    CONSTRAINT tag_proposals_status_check CHECK (
+        status::text = ANY (
+            ARRAY[
+                'pending'::character varying,
+                'approved'::character varying,
+                'rejected'::character varying
+            ]::text[]
+        )
+    )
+);
+
+ALTER TABLE public.tag_proposals OWNER TO postgres;
+
+
+--
+-- Name: tag_proposals_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.tag_proposals_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.tag_proposals_id_seq OWNER TO postgres;
+
+--
+-- Name: tag_proposals_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.tag_proposals_id_seq OWNED BY public.tag_proposals.id;
+
+
 --
 -- Name: places; Type: TABLE; Schema: public; Owner: postgres
 --
@@ -976,6 +1027,11 @@ ALTER TABLE ONLY public.sources ALTER COLUMN id SET DEFAULT nextval('public.sour
 
 ALTER TABLE ONLY public.subcategories ALTER COLUMN id SET DEFAULT nextval('public.subcategories_id_seq'::regclass);
 
+--
+-- Name: tag_proposals id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tag_proposals ALTER COLUMN id SET DEFAULT nextval('public.tag_proposals_id_seq'::regclass);
 
 --
 -- Name: tags id; Type: DEFAULT; Schema: public; Owner: postgres
@@ -1220,6 +1276,12 @@ ALTER TABLE ONLY public.sources
 ALTER TABLE ONLY public.subcategories
     ADD CONSTRAINT subcategories_pkey PRIMARY KEY (id);
 
+--
+-- Name: tag_proposals tag_proposals_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_pkey PRIMARY KEY (id);
 
 --
 -- Name: tags tags_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
@@ -1343,6 +1405,36 @@ ALTER TABLE ONLY public.favoris
 ALTER TABLE ONLY public.regions
     ADD CONSTRAINT fk_regions_territoires FOREIGN KEY (territoire_id) REFERENCES public.territoires(id);
 
+--
+-- Name: tag_proposals tag_proposals_category_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_category_fk FOREIGN KEY (category_id) REFERENCES public.categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: tag_proposals tag_proposals_moderator_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_moderator_fk FOREIGN KEY (moderated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: tag_proposals tag_proposals_place_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_place_fk FOREIGN KEY (place_id) REFERENCES public.places(id) ON DELETE CASCADE;
+
+
+--
+-- Name: tag_proposals tag_proposals_user_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tag_proposals
+    ADD CONSTRAINT tag_proposals_user_fk FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 --
 -- Name: history history_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres

@@ -1,4 +1,5 @@
 import os
+import re
 
 import psycopg
 from argon2 import PasswordHasher
@@ -325,10 +326,11 @@ def rechercher_global(terme):
     try:
         curseur = connexion.cursor()
 
-        # Priorité à une correspondance exacte sur une ville.
+        # Priorité aux correspondances directes.
+        mot_exact = rf"\m{re.escape(terme)}\M"
         curseur.execute(
             """
-            SELECT
+            SELECT DISTINCT
                 p.id,
                 p.name,
                 v.name,
@@ -340,18 +342,51 @@ def rechercher_global(terme):
             FROM places p
             JOIN villes v ON p.ville_id = v.id
             JOIN categories c ON p.category_id = c.id
-            WHERE LOWER(v.name) = LOWER(%s)
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            LEFT JOIN territoires tr ON r.territoire_id = tr.id
+            WHERE
+                p.name ~* %s
+                OR v.name ~* %s
+                OR c.name ~* %s
+                OR pa.name ~* %s
+                OR r.name ~* %s
+                OR tr.name ~* %s
+                OR EXISTS (
+                  SELECT 1
+                  FROM place_tags pt
+                  JOIN tags t ON t.id = pt.tag_id
+                  WHERE pt.place_id = p.id
+                  AND t.name ~* %s
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM place_services ps
+                  JOIN services s ON s.id = ps.service_id
+                  WHERE ps.place_id = p.id
+                   AND s.name ~* %s
+               )
             ORDER BY p.name
-            LIMIT 20;
+            LIMIT 20
             """,
-            (terme,),
+           (
+               mot_exact,
+               mot_exact,
+               mot_exact,
+               mot_exact,
+               mot_exact,
+               mot_exact,
+               mot_exact,
+               mot_exact,
+           ),
         )
 
         resultats_exacts = curseur.fetchall()
 
         if resultats_exacts:
-            curseur.close()
-            return resultats_exacts
+           curseur.close()
+           return resultats_exacts
+
 
         requete = """
             SELECT
@@ -434,6 +469,164 @@ def rechercher_global(terme):
 
     except psycopg.Error as erreur:
         print(f"Erreur lors de la recherche globale : {erreur}")
+        return []
+
+    finally:
+        connexion.close()
+
+
+def get_pays_par_categorie(categorie):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                pa.id,
+                pa.name
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            WHERE LOWER(c.name) = LOWER(%s)
+            ORDER BY pa.name
+            """,
+            (categorie,),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(f"Erreur lors de la recherche des pays par catégorie : {erreur}")
+        return []
+
+    finally:
+        connexion.close()
+
+
+def get_regions_par_categorie_et_pays(categorie, pays):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                r.id,
+                r.name
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            WHERE LOWER(c.name) = LOWER(%s)
+              AND LOWER(pa.name) = LOWER(%s)
+            ORDER BY r.name
+            """,
+            (categorie, pays),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(
+            "Erreur lors de la recherche des régions "
+            f"par catégorie et pays : {erreur}"
+        )
+        return []
+
+    finally:
+        connexion.close()
+
+def get_villes_par_categorie_pays_region(categorie, pays, region):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                v.id,
+                v.name
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            WHERE LOWER(c.name) = LOWER(%s)
+              AND LOWER(pa.name) = LOWER(%s)
+              AND LOWER(r.name) = LOWER(%s)
+            ORDER BY v.name
+            """,
+            (categorie, pays, region),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(
+            "Erreur lors de la recherche des villes "
+            f"par catégorie, pays et région : {erreur}"
+        )
+        return []
+
+    finally:
+        connexion.close()
+
+def get_lieux_par_categorie_pays_region_ville(categorie, pays, region, ville):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                p.id,
+                p.name,
+                v.name,
+                c.name,
+                p.address,
+                p.phone,
+                p.website
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            WHERE LOWER(c.name) = LOWER(%s)
+              AND LOWER(pa.name) = LOWER(%s)
+              AND LOWER(r.name) = LOWER(%s)
+              AND LOWER(v.name) = LOWER(%s)
+            ORDER BY p.name
+            """,
+            (categorie, pays, region, ville),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(
+            "Erreur lors de la recherche des lieux "
+            f"par catégorie, pays, région et ville : {erreur}"
+        )
         return []
 
     finally:
@@ -568,6 +761,324 @@ def get_tags_by_category(category_id):
     finally:
         connexion.close()
 
+def normaliser_nom_tag(nom):
+    """Normalise un nom de tag pour faciliter les comparaisons."""
+    return " ".join(nom.strip().lower().split())
+
+
+def rechercher_tag_exact(proposed_name, category_id):
+    """Recherche un tag existant après normalisation du nom."""
+    nom_normalise = normaliser_nom_tag(proposed_name)
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, name
+                FROM tags
+                WHERE category_id = %s
+                  AND lower(regexp_replace(trim(name), '\\s+', ' ', 'g')) = %s
+                LIMIT 1;
+                """,
+                (category_id, nom_normalise),
+            )
+            return curseur.fetchone()
+    finally:
+        connexion.close()
+
+
+def rechercher_tags_similaires(proposed_name, category_id, seuil=0.50):
+    """Recherche les tags similaires dans une catégorie donnée."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, name, similarity(name, %s) AS score
+                FROM tags
+                WHERE category_id = %s
+                  AND similarity(name, %s) >= %s
+                ORDER BY score DESC, name;
+                """,
+                (proposed_name, category_id, proposed_name, seuil),
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+def analyser_proposition_tag(nom, category_id):
+    """Analyse un nom de tag avant une éventuelle proposition."""
+
+    nom_normalise = normaliser_nom_tag(nom)
+
+    tag_exact = rechercher_tag_exact(nom_normalise, category_id)
+
+    if tag_exact:
+        return {
+            "statut": "existant",
+            "tag": tag_exact,
+            "similaires": [],
+        }
+
+    tags_similaires = rechercher_tags_similaires(
+        nom_normalise,
+        category_id,
+    )
+
+    if tags_similaires:
+        return {
+            "statut": "similaire",
+            "tag": None,
+            "similaires": tags_similaires,
+        }
+
+    return {
+        "statut": "nouveau",
+        "tag": None,
+        "similaires": [],
+    }
+
+
+def rechercher_tag_proposal_pending(
+    place_id,
+    user_id,
+    proposed_name,
+    category_id,
+):
+    """Recherche une proposition identique déjà en attente."""
+    nom_normalise = normaliser_nom_tag(proposed_name)
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, proposed_name
+                FROM tag_proposals
+                WHERE place_id = %s
+                  AND user_id = %s
+                  AND category_id = %s
+                  AND status = 'pending'
+                  AND lower(
+                      regexp_replace(trim(proposed_name), '\\s+', ' ', 'g')
+                  ) = %s
+                LIMIT 1;
+                """,
+                (
+                    place_id,
+                    user_id,
+                    category_id,
+                    nom_normalise,
+                ),
+            )
+            return curseur.fetchone()
+    finally:
+        connexion.close()
+
+
+def creer_tag_proposal(place_id, user_id, proposed_name, category_id):
+    """Enregistre une proposition de tag en attente de modération."""
+    proposition_existante = rechercher_tag_proposal_pending(
+       place_id,
+       user_id,
+       proposed_name,
+       category_id,
+    ) 
+
+    if proposition_existante:
+       return proposition_existante[0]
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO tag_proposals (
+                    place_id,
+                    user_id,
+                    proposed_name,
+                    category_id
+                )
+                VALUES (%s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (place_id, user_id, proposed_name.strip(), category_id),
+            )
+            proposal_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return proposal_id
+    finally:
+        connexion.close()
+
+def get_tag_proposals_pending():
+    """Retourne les propositions de tags en attente de modération."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT
+                    tp.id,
+                    tp.proposed_name,
+                    tp.place_id,
+                    tp.user_id,
+                    tp.category_id,
+                    tp.created_at
+                FROM tag_proposals AS tp
+                WHERE tp.status = 'pending'
+                ORDER BY tp.created_at, tp.id;
+                """
+            )
+            return curseur.fetchall()
+    finally:
+        connexion.close()
+
+def rejeter_tag_proposal(proposal_id, moderator_id):
+    """Refuse une proposition de tag en attente de modération."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                UPDATE tag_proposals
+                SET status = 'rejected',
+                    moderated_by = %s,
+                    moderated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                  AND status = 'pending'
+                RETURNING id;
+                """,
+                (moderator_id, proposal_id),
+            )
+
+            resultat = curseur.fetchone()
+
+        connexion.commit()
+
+        return resultat is not None
+    finally:
+        connexion.close()
+
+
+def creer_tag(name, category_id):
+    """Crée un nouveau tag et retourne son identifiant."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO tags (name, category_id)
+                VALUES (%s, %s)
+                RETURNING id;
+                """,
+                (name, category_id),
+            )
+
+            tag_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return tag_id
+    finally:
+        connexion.close()
+
+def get_tag_proposal(proposal_id):
+    """Retourne une proposition de tag à partir de son identifiant."""
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT
+                    id,
+                    place_id,
+                    user_id,
+                    proposed_name,
+                    category_id,
+                    status
+                FROM tag_proposals
+                WHERE id = %s;
+                """,
+                (proposal_id,),
+            )
+
+            return curseur.fetchone()
+    finally:
+        connexion.close()
+
+
+def obtenir_ou_creer_tag(name, category_id):
+    """Retourne un tag existant ou crée un nouveau tag."""
+    tag_existant = rechercher_tag_exact(
+        name,
+        category_id,
+    )
+
+    if tag_existant:
+        return tag_existant[0]
+
+    return creer_tag(
+        name,
+        category_id,
+    )
+
+
+def approuver_tag_proposal(proposal_id, moderator_id):
+    """Approuve une proposition et associe le tag au lieu."""
+    proposition = get_tag_proposal(proposal_id)
+
+    if proposition is None:
+        return False
+
+    place_id = proposition[1]
+    proposed_name = proposition[3]
+    category_id = proposition[4]
+    status = proposition[5]
+
+    if status != "pending":
+        return False
+
+    tag_id = obtenir_ou_creer_tag(
+        proposed_name,
+        category_id,
+    )
+
+    ajouter_tag_lieu(
+        place_id,
+        tag_id,
+    )
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                UPDATE tag_proposals
+                SET status = 'approved',
+                    moderated_by = %s,
+                    moderated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                  AND status = 'pending'
+                RETURNING id;
+                """,
+                (moderator_id, proposal_id),
+            )
+
+            resultat = curseur.fetchone()
+
+        connexion.commit()
+
+        return resultat is not None
+    finally:
+        connexion.close()
 
 
 def get_places_with_ids():
@@ -975,3 +1486,293 @@ def get_user_reaction(place_id, user_id):
             return resultat[0]
     finally:
         connexion.close()
+
+
+def get_contexte_recherche(terme):
+    connexion = connexion_db()
+
+    contexte = {
+        "pays": [],
+        "regions": [],
+        "villes": [],
+        "categories": [],
+        "lieux": [],
+    }
+
+    try:
+        curseur = connexion.cursor()
+
+        motif = f"%{terme}%"
+
+        # Pays liés au terme recherché, quel que soit son point d'entrée :
+        # pays, région, ville, catégorie ou lieu.
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                pa.id,
+                pa.name
+            FROM pays pa
+            LEFT JOIN regions r
+                ON r.country_id = pa.id
+            LEFT JOIN villes v
+                ON v.region_id = r.id
+            LEFT JOIN places p
+                ON p.ville_id = v.id
+            LEFT JOIN categories c
+                ON p.category_id = c.id
+            WHERE pa.name ILIKE %s
+               OR r.name ILIKE %s
+               OR v.name ILIKE %s
+               OR c.name ILIKE %s
+               OR p.name ILIKE %s
+            ORDER BY pa.name
+            """,
+            (motif, motif, motif, motif, motif),
+        )
+        contexte["pays"] = curseur.fetchall()
+
+        # Régions appartenant uniquement aux branches géographiques
+        # concernées par le terme recherché.
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                r.id,
+                r.name
+            FROM regions r
+            JOIN pays pa
+                ON r.country_id = pa.id
+            LEFT JOIN villes v
+                ON v.region_id = r.id
+            LEFT JOIN places p
+                ON p.ville_id = v.id
+            LEFT JOIN categories c
+                ON p.category_id = c.id
+            WHERE pa.name ILIKE %s
+               OR r.name ILIKE %s
+               OR v.name ILIKE %s
+               OR c.name ILIKE %s
+               OR p.name ILIKE %s
+            ORDER BY r.name
+            """,
+            (motif, motif, motif, motif, motif),
+        )
+        contexte["regions"] = curseur.fetchall()
+
+        # Villes reliées au terme.
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                v.id,
+                v.name
+            FROM villes v
+            JOIN regions r
+                ON v.region_id = r.id
+            JOIN pays pa
+                ON r.country_id = pa.id
+            LEFT JOIN places p
+                ON p.ville_id = v.id
+            LEFT JOIN categories c
+                ON p.category_id = c.id
+            WHERE pa.name ILIKE %s
+               OR r.name ILIKE %s
+               OR v.name ILIKE %s
+               OR c.name ILIKE %s
+               OR p.name ILIKE %s
+            ORDER BY v.name
+            """,
+            (motif, motif, motif, motif, motif),
+        )
+        contexte["villes"] = curseur.fetchall()
+
+        # Catégories reliées au terme.
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                c.id,
+                c.name
+            FROM categories c
+            JOIN places p
+                ON p.category_id = c.id
+            JOIN villes v
+                ON p.ville_id = v.id
+            JOIN regions r
+                ON v.region_id = r.id
+            JOIN pays pa
+                ON r.country_id = pa.id
+            WHERE pa.name ILIKE %s
+               OR r.name ILIKE %s
+               OR v.name ILIKE %s
+               OR c.name ILIKE %s
+               OR p.name ILIKE %s
+            ORDER BY c.name
+            """,
+            (motif, motif, motif, motif, motif),
+        )
+        contexte["categories"] = curseur.fetchall()
+
+        # Lieux reliés au terme.
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                p.id,
+                p.name
+            FROM places p
+            JOIN categories c
+                ON p.category_id = c.id
+            JOIN villes v
+                ON p.ville_id = v.id
+            JOIN regions r
+                ON v.region_id = r.id
+            JOIN pays pa
+                ON r.country_id = pa.id
+            WHERE pa.name ILIKE %s
+               OR r.name ILIKE %s
+               OR v.name ILIKE %s
+               OR c.name ILIKE %s
+               OR p.name ILIKE %s
+            ORDER BY p.name
+            """,
+            (motif, motif, motif, motif, motif),
+        )
+        contexte["lieux"] = curseur.fetchall()
+
+        curseur.close()
+        return contexte
+
+    except psycopg.Error as erreur:
+        print(f"Erreur lors de la recherche du contexte : {erreur}")
+        return contexte
+
+    finally:
+        connexion.close()
+
+def get_territoires_par_categorie_et_pays(categorie, pays):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                tr.id,
+                tr.name
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            JOIN territoires tr ON r.territoire_id = tr.id
+            WHERE LOWER(c.name) = LOWER(%s)
+              AND LOWER(pa.name) = LOWER(%s)
+            ORDER BY tr.name
+            """,
+            (categorie, pays),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(
+            "Erreur lors de la recherche des territoires "
+            f"par catégorie et pays : {erreur}"
+        )
+        return []
+
+    finally:
+        connexion.close()
+
+def get_villes_par_categorie_pays_territoire(
+    categorie,
+    pays,
+    territoire,
+):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                v.id,
+                v.name
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            JOIN territoires tr ON r.territoire_id = tr.id
+            WHERE LOWER(c.name) = LOWER(%s)
+              AND LOWER(pa.name) = LOWER(%s)
+              AND LOWER(tr.name) = LOWER(%s)
+            ORDER BY v.name
+            """,
+            (categorie, pays, territoire),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(
+            "Erreur lors de la recherche des villes "
+            f"par catégorie, pays et territoire : {erreur}"
+        )
+        return []
+
+    finally:
+        connexion.close()
+
+def get_lieux_par_categorie_pays_territoire_ville(
+    categorie,
+    pays,
+    territoire,
+    ville,
+):
+    connexion = connexion_db()
+
+    try:
+        curseur = connexion.cursor()
+
+        curseur.execute(
+            """
+            SELECT DISTINCT
+                p.id,
+                p.name
+            FROM places p
+            JOIN categories c ON p.category_id = c.id
+            JOIN villes v ON p.ville_id = v.id
+            JOIN regions r ON v.region_id = r.id
+            JOIN pays pa ON r.country_id = pa.id
+            JOIN territoires tr ON r.territoire_id = tr.id
+            WHERE LOWER(c.name) = LOWER(%s)
+              AND LOWER(pa.name) = LOWER(%s)
+              AND LOWER(tr.name) = LOWER(%s)
+              AND LOWER(v.name) = LOWER(%s)
+            ORDER BY p.name
+            """,
+            (categorie, pays, territoire, ville),
+        )
+
+        resultats = curseur.fetchall()
+        curseur.close()
+
+        return resultats
+
+    except psycopg.Error as erreur:
+        print(
+            "Erreur lors de la recherche des lieux "
+            f"par catégorie, pays, territoire et ville : {erreur}"
+        )
+        return []
+
+    finally:
+        connexion.close()
+
+

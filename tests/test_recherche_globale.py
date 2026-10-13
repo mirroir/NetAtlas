@@ -216,3 +216,22 @@ def test_recherche_globale_tolere_faute_sur_service():
         resultat[1] == "Marché de Saint-Pierre"
         for resultat in resultats
     )
+
+def test_recherche_globale_mot_partiel_non_exact():
+    resultats = rechercher_global("march")
+
+    assert isinstance(resultats, list)
+    assert len(resultats) > 0
+
+    # "march" doit pouvoir retrouver un lieu contenant "Marché",
+    # mais ne constitue pas un mot exact.
+    assert all(resultat[1].lower() != "march" for resultat in resultats)
+
+def test_recherche_globale_mot_exact_marche():
+    resultats = rechercher_global("marché")
+
+    assert isinstance(resultats, list)
+    assert len(resultats) > 0
+    assert any("marché" in resultat[1].lower() for resultat in resultats)
+
+
