@@ -90,6 +90,12 @@ jobs:
           GRANT DELETE ON TABLE public.place_reactions
           TO netatlas_ci_user;
 
+          GRANT DELETE ON TABLE public.tags
+          TO netatlas_ci_user;
+
+          GRANT DELETE ON TABLE public.tag_proposals
+          TO netatlas_ci_user;
+
           GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
           TO netatlas_ci_user;
           SQL
