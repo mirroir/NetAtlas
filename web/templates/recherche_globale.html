@@ -190,7 +190,14 @@
 
 								{% endif %}
 
-								{% if resultats_secondaires %}
+								{% if resultats_secondaires
+								and not (
+								(pays_categorie and not pays_selectionne)
+								or (territoires_categorie and not territoire_selectionne)
+								or (villes_categorie and not ville_selectionnee)
+								or lieux_categorie
+								)
+								%}
 
 								<div class="resultats-secondaires">
 
