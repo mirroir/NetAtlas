@@ -14,3 +14,8 @@ ENV_TEST = ROOT_DIR / ".env.test"
 load_dotenv(ENV_TEST, override=True)
 
 os.environ["NETATLAS_ENV"] = "test"
+
+os.environ["FLASK_SECRET_KEY"] = (
+    "netatlas-cle-reservee-exclusivement-aux-tests-automatises"
+)
+

@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -28,9 +29,15 @@ from database import (
 
 app = Flask(__name__)
 
-# Clé provisoire pour le développement local.
-# Elle sera placée dans une variable d'environnement avant la mise en ligne.
-app.secret_key = "netatlas-dev-secret"
+# Clé secrète chargée depuis l'environnement.
+# Aucune valeur de secours codée en dur.
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+
+if not app.secret_key:
+    raise RuntimeError(
+        "SECURITE NETATLAS : "
+        "FLASK_SECRET_KEY est absente de l'environnement."
+    )
 
 
 # ============================================================
@@ -142,6 +149,68 @@ def connexion_utilisateur():
     return render_template(
         "connexion_utilisateur.html",
         erreur=erreur,
+    )
+
+
+# ============================================================
+# CONNEXION ADMINISTRATEUR
+# ============================================================
+
+
+@app.route("/connexion/admin", methods=["GET", "POST"])
+def connexion_admin():
+    if (
+        request.method == "GET"
+        and session.get("user_id")
+        and session.get("role") == "admin"
+    ):
+        return redirect(url_for("espace_admin"))
+
+    erreur = None
+
+    if request.method == "POST":
+        nom = request.form["nom"]
+        pin = request.form["pin"]
+
+        administrateur = authentifier_utilisateur(
+            nom,
+            pin,
+            "admin",
+        )
+
+        if administrateur is None:
+            erreur = "Nom de compte ou PIN incorrect."
+
+        else:
+            session.clear()
+            session["user_id"] = administrateur["user_id"]
+            session["nom"] = administrateur["nom"]
+            session["role"] = administrateur["role"]
+
+            return redirect(url_for("espace_admin"))
+
+    return render_template(
+        "connexion_admin.html",
+        erreur=erreur,
+    )
+
+
+# ============================================================
+# ESPACE ADMINISTRATEUR
+# ============================================================
+
+
+@app.route("/admin")
+def espace_admin():
+    if (
+        "user_id" not in session
+        or session.get("role") != "admin"
+    ):
+        return redirect(url_for("connexion_admin"))
+
+    return render_template(
+        "espace_admin.html",
+        nom=session.get("nom"),
     )
 
 

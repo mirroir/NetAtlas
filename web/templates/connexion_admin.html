@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>NetAtlas - Connexion administrateur</title>
+
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='style.css') }}"
+        >
+    </head>
+
+    <body>
+        <a class="logo logo-home" href="{{ url_for('accueil') }}">
+            NETATLAS
+        </a>
+
+        <main class="page-acces">
+            <section class="acces-contenu">
+
+                <h1>Connexion administrateur</h1>
+
+                <form method="POST">
+                    <p>
+                        <label for="nom">Nom du compte</label>
+                    </p>
+
+                    <p>
+                        <input
+                            type="text"
+                            id="nom"
+                            name="nom"
+                            autocomplete="username"
+                            required
+                        >
+                    </p>
+
+                    <p>
+                        <label for="pin">PIN administrateur</label>
+                    </p>
+
+                    <p>
+                        <input
+                            type="password"
+                            id="pin"
+                            name="pin"
+                            autocomplete="current-password"
+                            required
+                        >
+                    </p>
+
+                    <button type="submit" class="choix-acces">
+                        Se connecter
+                    </button>
+                </form>
+
+                {% if erreur %}
+                    <p role="alert">{{ erreur }}</p>
+                {% endif %}
+
+                <a class="choix-acces" href="{{ url_for('acces') }}">
+                    Retour
+                </a>
+
+            </section>
+        </main>
+    </body>
+</html>
+
+
