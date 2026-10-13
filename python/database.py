@@ -398,14 +398,20 @@ def rechercher_global(terme):
                 p.phone,
                 p.website,
                 GREATEST(
-                  similarity(p.name, %s),
-                  similarity(r.name, %s),
-                  similarity(tr.name, %s),
-                  similarity(v.name, %s),
-                  similarity(c.name, %s),
-                  similarity(pa.name, %s),
-                  similarity(p.description, %s)
-               ) AS score   
+                    CASE
+                        WHEN p.name ILIKE %s THEN 0.90
+                        WHEN v.name ILIKE %s THEN 0.85
+                        WHEN c.name ILIKE %s THEN 0.85
+                        ELSE 0.0
+                    END,
+                    similarity(p.name, %s),
+                    similarity(r.name, %s),
+                    similarity(tr.name, %s),
+                    similarity(v.name, %s),
+                    similarity(c.name, %s),
+                    similarity(pa.name, %s),
+                    similarity(p.description, %s)
+                ) AS score
             FROM places p
             JOIN villes v ON p.ville_id = v.id
             JOIN categories c ON p.category_id = c.id
@@ -455,10 +461,20 @@ def rechercher_global(terme):
         curseur.execute(
                 requete,
                 (
+                    # Priorité aux correspondances partielles
+                    motif, motif, motif,
+
+                    # Calcul de similarité
                     terme, terme, terme, terme, terme, terme, terme,
+
+                    # Recherche partielle
                     motif, motif, motif, motif, motif, motif, motif,
+
+                    # Recherche approximative
                     terme, terme, terme, terme, terme, terme, terme,
-                    motif, terme, motif, terme,
+
+                    # Tags et services
+                    motif, terme, motif, terme,                    
                 ),
              )        
 

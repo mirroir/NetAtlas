@@ -234,4 +234,16 @@ def test_recherche_globale_mot_exact_marche():
     assert len(resultats) > 0
     assert any("marché" in resultat[1].lower() for resultat in resultats)
 
+def test_recherche_globale_mot_partiel_score_pertinent():
+    resultats = rechercher_global("march")
+
+    assert len(resultats) > 0
+    assert any(
+        "marché" in resultat[1].lower()
+        and resultat[7] >= 0.90
+        for resultat in resultats
+    )
+
+
+
 
