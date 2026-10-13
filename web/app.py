@@ -14,7 +14,6 @@ from database import (
     enregistrer_reaction,
     get_avis_by_place,
     get_contexte_recherche,
-    get_lieux_par_categorie_pays_region_ville,
     get_lieux_par_categorie_pays_territoire_ville,
     get_pays_par_categorie,
     get_place_details,
@@ -23,7 +22,6 @@ from database import (
     get_place_tags,
     get_territoires_par_categorie_et_pays,
     get_user_reaction,
-    get_villes_par_categorie_pays_region,
     get_villes_par_categorie_pays_territoire,
     rechercher_global,
 )
@@ -213,10 +211,6 @@ def recherche_globale_web(origine):
     territoires_categorie = []
     territoire_selectionne = ""
 
-    # Ancien parcours conservé temporairement
-    # pour compatibilité avec les tests existants.
-    regions_categorie = []
-    region_selectionnee = ""
 
     villes_categorie = []
     ville_selectionnee = ""
@@ -233,11 +227,6 @@ def recherche_globale_web(origine):
 
         territoire_selectionne = request.form.get(
             "territoire",
-            "",
-        ).strip()
-
-        region_selectionnee = request.form.get(
-            "region",
             "",
         ).strip()
 
@@ -284,49 +273,6 @@ def recherche_globale_web(origine):
                     )
                 )
 
-            # Ancien parcours par région conservé temporairement.
-            if (
-                pays_selectionne
-                and region_selectionnee
-                and not territoire_selectionne
-            ):
-                villes_categorie = (
-                    get_villes_par_categorie_pays_region(
-                        terme,
-                        pays_selectionne,
-                        region_selectionnee,
-                    )
-                )
-
-            if (
-                pays_selectionne
-                and region_selectionnee
-                and ville_selectionnee
-                and not territoire_selectionne
-            ):
-                lieux_categorie = (
-                    get_lieux_par_categorie_pays_region_ville(
-                        terme,
-                        pays_selectionne,
-                        region_selectionnee,
-                        ville_selectionnee,
-                    )
-                )
-
-            seuil_affichage = 0.50
-
-            resultats_principaux = [
-                resultat
-                for resultat in resultats
-                if resultat[7] >= seuil_affichage
-            ]
-
-            resultats_secondaires = [
-                resultat
-                for resultat in resultats
-                if resultat[7] < seuil_affichage
-            ]
-
 
             seuil_affichage = 0.50
 
@@ -364,8 +310,6 @@ def recherche_globale_web(origine):
         pays_selectionne=pays_selectionne,
         territoires_categorie=territoires_categorie,
         territoire_selectionne=territoire_selectionne,
-        regions_categorie=regions_categorie,
-        region_selectionnee=region_selectionnee,
         villes_categorie=villes_categorie,
         ville_selectionnee=ville_selectionnee,
         lieux_categorie=lieux_categorie,
