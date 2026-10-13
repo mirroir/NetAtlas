@@ -20,7 +20,7 @@ VALUES
 INSERT INTO regions
     (id, country_id, name, territoire_id)
 VALUES
-    (1, 1, 'La Réunion', 1);
+    (1, 1, 'Sud', 1);
 
 -- Ville utilisée par les tests
 INSERT INTO villes
@@ -74,6 +74,15 @@ VALUES
     (2, 'Producteurs locaux', 1),
     (3, 'Produits frais', 1);
 
+
+-- Synchronisation de la séquence des identifiants des tags
+SELECT setval(
+    pg_get_serial_sequence('public.tags', 'id'),
+    (SELECT MAX(id) FROM public.tags),
+    true
+);
+
+
 -- Association des tags au lieu de test
 INSERT INTO place_tags (place_id, tag_id)
 VALUES
@@ -105,7 +114,8 @@ VALUES
 
 
 INSERT INTO public.users (id, nom, email)
-VALUES (1, 'Utilisateur CI', 'ci@netatlas.local');
+VALUES (1, 'Utilisateur CI', 'ci@netatlas.local'),
+       (3, 'Utilisateur test propositions', 'propositions@netatlas.local');
 
 
 -- Utilisateur applicatif utilisé par les tests CI
