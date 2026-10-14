@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-import psycopg2
+import psycopg
 import pytest
 from dotenv import load_dotenv
 
@@ -19,7 +19,7 @@ PLACE_ID_TEST = 1
 
 
 def connexion_test():
-    return psycopg2.connect(
+    return psycopg.connect(
         host=os.getenv("DB_HOST"),
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
@@ -218,7 +218,7 @@ def test_enregistrer_reaction_erreur_sql(monkeypatch):
             return False
 
         def execute(self, *args, **kwargs):
-            raise psycopg2.Error("Erreur SQL simulée")
+            raise psycopg.Error("Erreur SQL simulée")
 
     class FausseConnexion:
         def __init__(self):
@@ -244,7 +244,7 @@ def test_enregistrer_reaction_erreur_sql(monkeypatch):
         lambda: fausse_connexion,
     )
 
-    with pytest.raises(psycopg2.Error, match="Erreur SQL simulée"):
+    with pytest.raises(psycopg.Error, match="Erreur SQL simulée"):
         enregistrer_reaction(1, 1, 1)
 
     assert fausse_connexion.rollback_effectue is True

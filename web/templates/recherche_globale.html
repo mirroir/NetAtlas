@@ -31,6 +31,7 @@
 							</p>
 
 							<form method="POST" class="recherche-formulaire">
+								<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 								<input
 										type="text"
 										id="terme"
@@ -57,6 +58,7 @@
 
 									{% for pays in pays_categorie %}
 									<form method="POST">
+										<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 										<input type="hidden" name="terme" value="{{ terme }}">
 										<input type="hidden" name="pays" value="{{ pays[1] }}">
 
@@ -74,6 +76,7 @@
 
 									{% for territoire in territoires_categorie %}
 									<form method="POST">
+										<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 										<input type="hidden" name="terme" value="{{ terme }}">
 										<input
 												type="hidden"
@@ -100,6 +103,7 @@
 
 									{% for ville in villes_categorie %}
 									<form method="POST">
+										<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 										<input type="hidden" name="terme" value="{{ terme }}">
 										<input type="hidden" name="pays" value="{{ pays_selectionne }}">
 										<input

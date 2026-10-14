@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, session, url_for
+from flask_wtf.csrf import CSRFProtect
 from psycopg.errors import UniqueViolation
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
@@ -37,6 +38,17 @@ if not app.secret_key:
     raise RuntimeError(
         "SECURITE NETATLAS : "
         "FLASK_SECRET_KEY est absente de l'environnement."
+    )
+
+csrf = CSRFProtect()
+
+app.config["WTF_CSRF_CHECK_DEFAULT"] = True
+csrf.init_app(app)
+
+def est_utilisateur_connecte():
+    return (
+        session.get("user_id") is not None
+        and session.get("role") == "utilisateur"
     )
 
 
@@ -221,14 +233,13 @@ def espace_admin():
 
 @app.route("/utilisateur")
 def espace_utilisateur():
-    if "user_id" not in session:
+    if not est_utilisateur_connecte():
         return redirect(url_for("connexion_utilisateur"))
 
     return render_template(
         "espace_utilisateur.html",
         nom=session["nom"],
     )
-
 
 @app.route("/deconnexion")
 def deconnexion():
@@ -244,7 +255,7 @@ def deconnexion():
 
 @app.route("/utilisateur/consultation")
 def consultation_utilisateur():
-    if "user_id" not in session:
+    if not est_utilisateur_connecte():
         return redirect(url_for("connexion_utilisateur"))
 
     return redirect(
@@ -254,10 +265,9 @@ def consultation_utilisateur():
         )
     )
 
-
 @app.route("/recherche/globale/<origine>", methods=["GET", "POST"])
 def recherche_globale_web(origine):
-    if origine == "utilisateur" and "user_id" not in session:
+    if origine == "utilisateur" and not est_utilisateur_connecte():
         return redirect(url_for("connexion_utilisateur"))
 
     resultats = []
@@ -389,7 +399,7 @@ def recherche_globale_web(origine):
 @app.route("/lieu/<int:place_id>/<origine>", methods=["GET", "POST"])
 def detail_lieu(place_id, origine):
     source = request.args.get("source")
-    if origine == "utilisateur" and "user_id" not in session:
+    if origine == "utilisateur" and not est_utilisateur_connecte():
         return redirect(url_for("connexion_utilisateur"))
 
     erreur_commentaire = None
@@ -405,7 +415,7 @@ def detail_lieu(place_id, origine):
         )
 
     if request.method == "POST":
-        if origine != "utilisateur" or "user_id" not in session:
+        if origine != "utilisateur" or not est_utilisateur_connecte():
             return redirect(url_for("connexion_utilisateur"))
 
         action = request.form.get("action")
@@ -460,14 +470,14 @@ def detail_lieu(place_id, origine):
         source=source,
     )
 
-
 @app.post("/lieu/<int:place_id>/reaction")
 def reaction_lieu(place_id):
     source = request.form.get("source")
-    user_id = session.get("user_id")
 
-    if user_id is None:
-        return redirect(url_for("accueil"))
+    if not est_utilisateur_connecte():
+        return redirect(url_for("connexion_utilisateur"))
+
+    user_id = session["user_id"]
 
     reaction = request.form.get("reaction", type=int)
 

@@ -14,7 +14,7 @@ def test_recherche_globale_web_accessible():
 
     assert reponse.status_code == 200
 
-def test_recherche_categorie_transmet_les_pays(monkeypatch):
+def test_recherche_categorie_transmet_les_pays(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -28,15 +28,20 @@ def test_recherche_categorie_transmet_les_pays(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         reponse = client.post(
             "/recherche/globale/temporaire",
-            data={"terme": "Marché"},
+            data={
+                "terme": "Marché",
+                "csrf_token": donnees_csrf["csrf_token"],
+            },
         )
 
     assert reponse.status_code == 200
     assert b"France" in reponse.data
 
-def test_recherche_pays_transmet_les_territoires(monkeypatch):
+def test_recherche_pays_transmet_les_territoires(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -55,18 +60,21 @@ def test_recherche_pays_transmet_les_territoires(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         response = client.post(
             "/recherche/globale/temporaire",
             data={
                 "terme": "Marché",
                 "pays": "France",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 
     assert response.status_code == 200
     assert b"La R\xc3\xa9union" in response.data
 
-def test_recherche_territoire_transmet_les_villes(monkeypatch):
+def test_recherche_territoire_transmet_les_villes(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -92,12 +100,15 @@ def test_recherche_territoire_transmet_les_villes(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         response = client.post(
             "/recherche/globale/temporaire",
             data={
                 "terme": "Marché",
                 "pays": "France",
                 "territoire": "La Réunion",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 
@@ -105,7 +116,7 @@ def test_recherche_territoire_transmet_les_villes(monkeypatch):
     assert b"Saint-Pierre" in response.data
 
 
-def test_recherche_ville_transmet_les_lieux(monkeypatch):
+def test_recherche_ville_transmet_les_lieux(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -138,6 +149,8 @@ def test_recherche_ville_transmet_les_lieux(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         response = client.post(
             "/recherche/globale/temporaire",
             data={
@@ -145,6 +158,7 @@ def test_recherche_ville_transmet_les_lieux(monkeypatch):
                 "pays": "France",
                 "territoire": "La Réunion",
                 "ville": "Saint-Pierre",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 
@@ -152,7 +166,7 @@ def test_recherche_ville_transmet_les_lieux(monkeypatch):
     assert b"March\xc3\xa9 de Saint-Pierre" in response.data
 
 
-def test_recherche_categorie_propose_plusieurs_pays(monkeypatch):
+def test_recherche_categorie_propose_plusieurs_pays(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -169,10 +183,13 @@ def test_recherche_categorie_propose_plusieurs_pays(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         reponse = client.post(
             "/recherche/globale/temporaire",
             data={
                 "terme": "Marché",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 
@@ -182,7 +199,7 @@ def test_recherche_categorie_propose_plusieurs_pays(monkeypatch):
 
 
 def test_recherche_australie_transmet_uniquement_ses_territoires(
-    monkeypatch,
+    monkeypatch, csrf_data
 ):
     app.config["TESTING"] = True
 
@@ -220,11 +237,14 @@ def test_recherche_australie_transmet_uniquement_ses_territoires(
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         response = client.post(
             "/recherche/globale/temporaire",
             data={
                 "terme": "Marché",
                 "pays": "Australie",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 
@@ -232,7 +252,7 @@ def test_recherche_australie_transmet_uniquement_ses_territoires(
     assert b"Queensland" in response.data
     assert b"La R\xc3\xa9union" not in response.data
 
-def test_recherche_globale_transmet_contexte(monkeypatch):
+def test_recherche_globale_transmet_contexte(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -257,16 +277,19 @@ def test_recherche_globale_transmet_contexte(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         response = client.post(
             "/recherche/globale/temporaire",
             data={
                 "terme": "TEST_CONTEXTE",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 
     assert response.status_code == 200
 
-def test_recherche_territoire_transmet_ses_villes(monkeypatch):
+def test_recherche_territoire_transmet_ses_villes(monkeypatch, csrf_data):
     app.config["TESTING"] = True
 
     monkeypatch.setattr(
@@ -304,12 +327,15 @@ def test_recherche_territoire_transmet_ses_villes(monkeypatch):
     )
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
         response = client.post(
             "/recherche/globale/temporaire",
             data={
                 "terme": "Agriculture",
                 "pays": "France",
                 "territoire": "La Réunion",
+                "csrf_token": donnees_csrf["csrf_token"],
             },
         )
 

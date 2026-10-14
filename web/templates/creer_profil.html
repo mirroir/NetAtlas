@@ -30,38 +30,43 @@
 					{% endif %}
 
 					<form method="POST">
-						<p>
+						<input
+								type="hidden"
+								name="csrf_token"
+								value="{{ csrf_token() }}"
+								>
+								<p>
 						<label for="nom">Nom du profil</label>
-						</p>
+								</p>
 
-						<p>
-						<input
-								type="text"
-								id="nom"
-								name="nom"
-								required
-								>
-						</p>
+								<p>
+								<input
+										type="text"
+										id="nom"
+										name="nom"
+										required
+										>
+								</p>
 
-						<p>
-						<label for="pin">PIN</label>
-						</p>
+								<p>
+								<label for="pin">PIN</label>
+								</p>
 
-						<p>
-						<input
-								type="password"
-								id="pin"
-								name="pin"
-								inputmode="numeric"
-								minlength="4"
-								maxlength="6"
-								required
-								>
-						</p>
+								<p>
+								<input
+										type="password"
+										id="pin"
+										name="pin"
+										inputmode="numeric"
+										minlength="4"
+										maxlength="6"
+										required
+										>
+								</p>
 
-						<button type="submit" class="choix-acces">
-							Créer le profil
-						</button>
+								<button type="submit" class="choix-acces">
+									Créer le profil
+								</button>
 					</form>
 
 					<a class="choix-acces" href="{{ url_for('acces') }}">

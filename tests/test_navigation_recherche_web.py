@@ -15,6 +15,8 @@ def test_formulaire_ville_conserve_territoire():
         autoescape=True,
     )
 
+    env.globals["csrf_token"] = lambda: "jeton_csrf_simule_pour_test"
+
     template = env.get_template("recherche_globale.html")
 
     html = template.render(
@@ -43,6 +45,8 @@ def test_lieu_cliquable_vers_fiche_detail():
         loader=FileSystemLoader(TEMPLATES_DIR),
         autoescape=True,
     )
+
+    env.globals["csrf_token"] = lambda: "jeton_csrf_simule_pour_test"
 
     template = env.get_template("recherche_globale.html")
 
@@ -78,6 +82,8 @@ def test_suggestions_geographiques_masquent_resultats_secondaires():
         autoescape=True,
     )
 
+    env.globals["csrf_token"] = lambda: "jeton_csrf_simule_pour_test"
+
     template = env.get_template("recherche_globale.html")
 
     html = template.render(
@@ -107,6 +113,8 @@ def test_resultats_secondaires_visibles_sans_suggestion_geographique():
         loader=FileSystemLoader(TEMPLATES_DIR),
         autoescape=True,
     )
+
+    env.globals["csrf_token"] = lambda: "jeton_csrf_simule_pour_test"
 
     template = env.get_template("recherche_globale.html")
 
