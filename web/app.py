@@ -30,6 +30,40 @@ from database import (
 
 app = Flask(__name__)
 
+# ============================================================
+# SECURITE DES COOKIES DE SESSION
+# ============================================================
+
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# HTTP autorisé uniquement pour le développement local.
+# En production, NETATLAS_WEB_HTTPS doit être activé.
+app.config["SESSION_COOKIE_SECURE"] = (
+    os.getenv("NETATLAS_WEB_HTTPS") == "1"
+)
+
+# ============================================================
+# GARDE-FOU HTTPS EN PRODUCTION
+# ============================================================
+
+web_env = os.getenv("NETATLAS_WEB_ENV", "development")
+
+if web_env not in ("development", "production"):
+    raise RuntimeError(
+        "SECURITE NETATLAS : environnement Web invalide."
+    )
+
+if (
+    web_env == "production"
+    and not app.config["SESSION_COOKIE_SECURE"]
+):
+    raise RuntimeError(
+        "SECURITE NETATLAS : "
+        "HTTPS obligatoire en production."
+    )
+
+
 # Clé secrète chargée depuis l'environnement.
 # Aucune valeur de secours codée en dur.
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
@@ -152,6 +186,8 @@ def connexion_utilisateur():
             erreur = "Nom de profil ou PIN incorrect."
 
         else:
+            session.clear()
+
             session["user_id"] = utilisateur["user_id"]
             session["nom"] = utilisateur["nom"]
             session["role"] = utilisateur["role"]
