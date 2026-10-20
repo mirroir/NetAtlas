@@ -1535,17 +1535,3 @@ ALTER TABLE ONLY public.villes
 \unrestrict R1FkM6IkyqfP3HDO16iEBXeRSLqXSbJnc5PGt9S1x3ED8dFuaYM611sjmhvWPAe
 
 
-GRANT SELECT, INSERT, UPDATE, DELETE
-ON TABLE public.avis
-TO netatlas_user;
-
-GRANT SELECT, INSERT, UPDATE, DELETE
-ON TABLE public.place_reactions
-TO netatlas_user;
-
-GRANT USAGE, SELECT
-ON SEQUENCE public.avis_id_seq
-TO netatlas_user;
-
-
-
