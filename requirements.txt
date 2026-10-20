@@ -39,3 +39,4 @@ urllib3==2.7.0
 Werkzeug==3.1.8
 wheel==0.47.0
 WTForms==3.2.2
+webauthn==3.0.1
