@@ -1792,3 +1792,251 @@ def get_lieux_par_categorie_pays_territoire_ville(
         connexion.close()
 
 
+def enregistrer_credential_webauthn(
+    user_id,
+    credential_id,
+    public_key,
+    sign_count=0,
+):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO webauthn_credentials
+                    (user_id, credential_id, public_key, sign_count)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    user_id,
+                    credential_id,
+                    public_key,
+                    sign_count,
+                ),
+            )
+
+            nouvel_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return nouvel_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+
+def get_credential_webauthn(credential_id):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT
+                    id,
+                    user_id,
+                    credential_id,
+                    public_key,
+                    sign_count
+                FROM webauthn_credentials
+                WHERE credential_id = %s
+                """,
+                (credential_id,),
+            )
+
+            resultat = curseur.fetchone()
+
+            if resultat is None:
+                return None
+
+            return {
+                "id": resultat[0],
+                "user_id": resultat[1],
+                "credential_id": resultat[2],
+                "public_key": resultat[3],
+                "sign_count": resultat[4],
+            }
+
+    finally:
+        connexion.close()
+
+
+
+def mettre_a_jour_compteur_webauthn(
+    credential_id,
+    sign_count,
+):
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                UPDATE webauthn_credentials
+                SET sign_count = %s
+                WHERE credential_id = %s
+                  AND (
+                      (sign_count = 0 AND %s = 0)
+                      OR sign_count < %s
+                  )
+                RETURNING id
+                """,
+                (sign_count, credential_id, sign_count, sign_count),
+            )
+            resultat = curseur.fetchone()
+
+        if resultat is None:
+            connexion.rollback()
+            return False
+
+        connexion.commit()
+        return True
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+def enregistrer_challenge_webauthn(
+    challenge_hash,
+    session_binding_hash,
+    operation,
+    user_id=None,
+    duree_secondes=60,
+):
+    """Enregistre un challenge WebAuthn temporaire."""
+
+    if not isinstance(challenge_hash, bytes) or len(challenge_hash) != 32:
+        raise ValueError("Empreinte du challenge invalide.")
+
+    if (
+        not isinstance(session_binding_hash, bytes)
+        or len(session_binding_hash) != 32
+    ):
+        raise ValueError("Empreinte de tentative invalide.")
+
+    if operation not in ("registration", "authentication"):
+        raise ValueError("Opération WebAuthn invalide.")
+
+    if operation == "registration" and user_id is None:
+        raise ValueError("Utilisateur obligatoire pour l'enregistrement.")
+
+    if not isinstance(duree_secondes, int) or not 1 <= duree_secondes <= 300:
+        raise ValueError("Durée du challenge invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO webauthn_challenges (
+                    challenge_hash,
+                    session_binding_hash,
+                    user_id,
+                    operation,
+                    expires_at
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    CURRENT_TIMESTAMP + (%s * INTERVAL '1 second')
+                )
+                RETURNING id
+                """,
+                (
+                    challenge_hash,
+                    session_binding_hash,
+                    user_id,
+                    operation,
+                    duree_secondes,
+                ),
+            )
+
+            nouvel_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return nouvel_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+def consommer_challenge_webauthn(
+    challenge_hash,
+    session_binding_hash,
+    operation,
+    user_id=None,
+):
+    """Consomme une seule fois un challenge WebAuthn valide."""
+
+    if not isinstance(challenge_hash, bytes) or len(challenge_hash) != 32:
+        raise ValueError("Empreinte du challenge invalide.")
+
+    if (
+        not isinstance(session_binding_hash, bytes)
+        or len(session_binding_hash) != 32
+    ):
+        raise ValueError("Empreinte de tentative invalide.")
+
+    if operation not in ("registration", "authentication"):
+        raise ValueError("Opération WebAuthn invalide.")
+
+    if operation == "registration" and user_id is None:
+        raise ValueError("Utilisateur obligatoire pour l'enregistrement.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                UPDATE webauthn_challenges
+                SET consumed_at = CURRENT_TIMESTAMP
+                WHERE challenge_hash = %s
+                  AND session_binding_hash = %s
+                  AND operation = %s
+                  AND user_id IS NOT DISTINCT FROM %s
+                  AND expires_at > CURRENT_TIMESTAMP
+                  AND consumed_at IS NULL
+                RETURNING id
+                """,
+                (
+                    challenge_hash,
+                    session_binding_hash,
+                    operation,
+                    user_id,
+                ),
+            )
+
+            resultat = curseur.fetchone()
+
+        if resultat is None:
+            connexion.rollback()
+            return False
+
+        connexion.commit()
+        return True
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+

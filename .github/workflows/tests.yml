@@ -72,9 +72,12 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          psql -h localhost -U postgres -d netatlas_test -f database/test_schema.sql
-          psql -h localhost -U postgres -d netatlas_test -f database/test_seed.sql
+          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/test_schema.sql
+          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/test_seed.sql
 
+          # Création des tables WebAuthn avant les autorisations CI
+          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/001_create_webauthn_credentials.sql
+          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/002_create_webauthn_challenges.sql
           psql -h localhost -U postgres -d netatlas_test <<'SQL'
           CREATE USER netatlas_ci_user WITH PASSWORD 'netatlas_ci_password';
 
@@ -94,6 +97,9 @@ jobs:
           TO netatlas_ci_user;
 
           GRANT DELETE ON TABLE public.tag_proposals
+          TO netatlas_ci_user;
+
+          GRANT DELETE ON TABLE public.webauthn_challenges
           TO netatlas_ci_user;
 
           GRANT DELETE ON TABLE public.place_tags
