@@ -268,4 +268,69 @@ body {
     margin: 40px auto 0;
 }
 
+/* ============================================================
+   NETATLAS - TABLEAU DE BORD ADMINISTRATION
+   ============================================================ */
+
+.page-admin {
+    min-height: 100vh;
+    padding: 110px 24px 60px;
+}
+
+.admin-contenu {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+.admin-contenu h1 {
+    font-size: 32px;
+    font-weight: 400;
+    margin: 0 0 16px;
+}
+
+.admin-contenu h2 {
+    font-size: 24px;
+    margin: 40px 0 20px;
+}
+
+.admin-contenu h3 {
+    font-size: 19px;
+    margin: 28px 0 14px;
+}
+
+.admin-contenu p {
+    line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+    .page-admin {
+        padding: 100px 18px 40px;
+    }
+
+    .admin-contenu h1 {
+        font-size: 26px;
+    }
+}
+
+/* ============================================================
+   NETATLAS - CORRECTION ERGONOMIQUE RECHERCHE
+   ============================================================ */
+
+.recherche-principale {
+    padding-top: 85px;
+    box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+    .recherche-principale {
+        padding-top: 100px;
+    }
+
+    .recherche-principale h1 {
+        font-size: 26px;
+    }
+}
+
 

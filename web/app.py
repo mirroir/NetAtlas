@@ -1,18 +1,24 @@
+import hashlib
 import os
+import secrets
 import sys
 from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 from psycopg.errors import UniqueViolation
+from webauthn import options_to_json
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
+
+from webauthn_service import generer_options_enregistrement
 
 from database import (
     ajouter_avis,
     authentifier_utilisateur,
     creer_utilisateur,
+    enregistrer_challenge_webauthn,
     enregistrer_reaction,
     get_avis_by_place,
     get_contexte_recherche,
@@ -261,6 +267,68 @@ def espace_admin():
         nom=session.get("nom"),
     )
 
+
+# ============================================================
+# PASSKEY - PREPARATION ENREGISTREMENT ADMINISTRATEUR
+# ============================================================
+
+
+@app.post("/admin/passkey/enregistrement/options")
+def options_enregistrement_passkey_admin():
+    """Prépare l'enregistrement d'une Passkey administrateur."""
+
+    if (
+        session.get("user_id") is None
+        or session.get("role") != "admin"
+    ):
+        return redirect(url_for("connexion_admin"))
+
+    # Invalider toute ancienne tentative avant d'en préparer une nouvelle.
+    session.pop("passkey_registration", None)
+
+    user_id = session["user_id"]
+    nom = session["nom"]
+
+    # Générer les options WebAuthn.
+    options = generer_options_enregistrement(
+        user_id=user_id,
+        nom=nom,
+    )
+
+    # Créer un identifiant aléatoire pour cette tentative.
+    session_binding = secrets.token_bytes(32)
+
+    # Calculer les empreintes conservées dans PostgreSQL.
+    challenge_hash = hashlib.sha256(
+        options.challenge
+    ).digest()
+
+    session_binding_hash = hashlib.sha256(
+        session_binding
+    ).digest()
+
+    # Enregistrer le challenge avec une expiration de 60 secondes.
+    enregistrer_challenge_webauthn(
+        challenge_hash=challenge_hash,
+        session_binding_hash=session_binding_hash,
+        operation="registration",
+        user_id=user_id,
+        duree_secondes=60,
+    )
+
+    # Conserver les données temporaires pour la vérification.
+    session["passkey_registration"] = {
+        "challenge": options.challenge.hex(),
+        "session_binding": session_binding.hex(),
+        "user_id": user_id,
+    }
+
+    # Transmettre les options au navigateur.
+    return app.response_class(
+        response=options_to_json(options),
+        status=200,
+        mimetype="application/json",
+    )
 
 # ============================================================
 # ESPACE UTILISATEUR
@@ -539,4 +607,4 @@ def reaction_lieu(place_id):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="127.0.0.1", port=5000)
