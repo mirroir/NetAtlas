@@ -2039,4 +2039,89 @@ def consommer_challenge_webauthn(
     finally:
         connexion.close()
 
+def finaliser_enregistrement_webauthn(
+    challenge_hash,
+    session_binding_hash,
+    user_id,
+    credential_id,
+    public_key,
+    sign_count=0,
+):
+    """Consomme un challenge et enregistre une Passkey atomiquement."""
+
+    if not isinstance(challenge_hash, bytes) or len(challenge_hash) != 32:
+        raise ValueError("Empreinte du challenge invalide.")
+
+    if (
+        not isinstance(session_binding_hash, bytes)
+        or len(session_binding_hash) != 32
+    ):
+        raise ValueError("Empreinte de tentative invalide.")
+
+    if not isinstance(user_id, int) or user_id <= 0:
+        raise ValueError("Utilisateur invalide.")
+
+    if not isinstance(credential_id, bytes) or not credential_id:
+        raise ValueError("Identifiant Passkey invalide.")
+
+    if not isinstance(public_key, bytes) or not public_key:
+        raise ValueError("Clé publique invalide.")
+
+    if not isinstance(sign_count, int) or sign_count < 0:
+        raise ValueError("Compteur WebAuthn invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                UPDATE webauthn_challenges
+                SET consumed_at = CURRENT_TIMESTAMP
+                WHERE challenge_hash = %s
+                  AND session_binding_hash = %s
+                  AND operation = 'registration'
+                  AND user_id = %s
+                  AND expires_at > CURRENT_TIMESTAMP
+                  AND consumed_at IS NULL
+                RETURNING id
+                """,
+                (
+                    challenge_hash,
+                    session_binding_hash,
+                    user_id,
+                ),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+            curseur.execute(
+                """
+                INSERT INTO webauthn_credentials
+                    (user_id, credential_id, public_key, sign_count)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    user_id,
+                    credential_id,
+                    public_key,
+                    sign_count,
+                ),
+            )
+
+            credential_db_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return credential_db_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
 

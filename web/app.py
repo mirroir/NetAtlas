@@ -4,15 +4,18 @@ import secrets
 import sys
 from pathlib import Path
 
-from flask import Flask, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import CSRFProtect
 from psycopg.errors import UniqueViolation
 from webauthn import options_to_json
+from webauthn.helpers.exceptions import WebAuthnException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
-
-from webauthn_service import generer_options_enregistrement
+from webauthn_service import (
+    generer_options_enregistrement,
+    verifier_enregistrement,
+)
 
 from database import (
     ajouter_avis,
@@ -20,6 +23,7 @@ from database import (
     creer_utilisateur,
     enregistrer_challenge_webauthn,
     enregistrer_reaction,
+    finaliser_enregistrement_webauthn,
     get_avis_by_place,
     get_contexte_recherche,
     get_lieux_par_categorie_pays_territoire_ville,
@@ -329,6 +333,71 @@ def options_enregistrement_passkey_admin():
         status=200,
         mimetype="application/json",
     )
+
+
+# ============================================================
+# PASSKEY - FINALISATION ENREGISTREMENT ADMINISTRATEUR
+# ============================================================
+
+
+@app.post("/admin/passkey/enregistrement/verifier")
+def verifier_enregistrement_passkey_admin():
+    """Vérifie et enregistre une Passkey administrateur."""
+
+    if (
+        session.get("user_id") is None
+        or session.get("role") != "admin"
+    ):
+        return redirect(url_for("connexion_admin"))
+
+    tentative = session.pop("passkey_registration", None)
+
+    if not isinstance(tentative, dict):
+        return jsonify({"erreur": "Tentative Passkey absente."}), 400
+
+    if tentative.get("user_id") != session["user_id"]:
+        return jsonify({"erreur": "Tentative Passkey invalide."}), 400
+
+    credential = request.get_json(silent=True)
+
+    if not isinstance(credential, dict):
+        return jsonify({"erreur": "Réponse WebAuthn invalide."}), 400
+
+    try:
+        challenge = bytes.fromhex(tentative["challenge"])
+        session_binding = bytes.fromhex(tentative["session_binding"])
+
+        if len(challenge) < 16 or len(session_binding) != 32:
+            return jsonify({"erreur": "Tentative Passkey invalide."}), 400
+
+        verification = verifier_enregistrement(
+            credential=credential,
+            challenge_attendu=challenge,
+        )
+
+        resultat = finaliser_enregistrement_webauthn(
+            challenge_hash=hashlib.sha256(challenge).digest(),
+            session_binding_hash=hashlib.sha256(session_binding).digest(),
+            user_id=session["user_id"],
+            credential_id=verification.credential_id,
+            public_key=verification.credential_public_key,
+            sign_count=verification.sign_count,
+        )
+
+    except (ValueError, KeyError, TypeError, WebAuthnException):
+        return jsonify({"erreur": "Enregistrement Passkey invalide."}), 400
+
+    except UniqueViolation:
+        return jsonify({"erreur": "Passkey déjà enregistrée."}), 409
+
+    if resultat is False:
+        return jsonify({"erreur": "Challenge expiré ou déjà utilisé."}), 400
+
+    return jsonify({
+        "message": "Passkey administrateur enregistrée.",
+        "credential_id": resultat,
+    }), 201
+
 
 # ============================================================
 # ESPACE UTILISATEUR
