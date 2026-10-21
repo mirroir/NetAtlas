@@ -99,6 +99,9 @@ jobs:
           GRANT DELETE ON TABLE public.tag_proposals
           TO netatlas_ci_user;
 
+          GRANT DELETE ON TABLE public.webauthn_challenges
+          TO netatlas_ci_user;
+
           GRANT DELETE ON TABLE public.webauthn_credentials
           TO netatlas_ci_user;
 
