@@ -255,12 +255,14 @@ def test_amorcage_annule_insertion_credential_en_erreur():
 
 def test_amorcage_rollback_apres_erreur_sql_reelle():
     """Une erreur d'insertion ne doit consommer ni jeton ni challenge."""
+    import secrets
+
     import pytest
 
     user_id = 3
-    token_hash = hashlib.sha256(b"rollback-reel-token").digest()
-    challenge_hash = hashlib.sha256(b"rollback-reel-challenge").digest()
-    session_hash = hashlib.sha256(b"rollback-reel-session").digest()
+    token_hash = secrets.token_bytes(32)
+    challenge_hash = secrets.token_bytes(32)
+    session_hash = secrets.token_bytes(32)
 
     connexion = database.connexion_db()
 

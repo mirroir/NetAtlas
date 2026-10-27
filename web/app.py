@@ -665,6 +665,37 @@ def verifier_amorcage_passkey_admin_web():
 
 
 # ============================================================
+# PASSKEY - RECUPERATION ADMINISTRATEUR
+# ============================================================
+
+
+@app.post("/admin/passkey/recuperation/options")
+@limiter_tentatives_passkey
+def options_recuperation_passkey_admin():
+    """Point d'entrée sécurisé de préparation de récupération."""
+
+    session.pop("passkey_recovery_registration", None)
+
+    # La préparation sera activée après validation de ses tests.
+    return jsonify({
+        "erreur": "Autorisation de récupération requise."
+    }), 403
+
+
+@app.post("/admin/passkey/recuperation/verifier")
+@limiter_tentatives_passkey
+def verifier_recuperation_passkey_admin_web():
+    """Point d'entrée de vérification, fermé par défaut."""
+
+    session.pop("passkey_recovery_registration", None)
+
+    # La finalisation privilégiée n'est pas encore disponible.
+    return jsonify({
+        "erreur": "Autorisation de récupération requise."
+    }), 403
+
+
+# ============================================================
 # ESPACE UTILISATEUR
 # ============================================================
 

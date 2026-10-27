@@ -51,18 +51,19 @@ def test_routes_voisines_non_affectees(client, chemin):
     assert reponse.headers.get("Cache-Control") != "no-store"
     assert reponse.headers.get("Pragma") != "no-cache"
 
-
 @pytest.mark.parametrize(
-    "chemin",
+    ("chemin", "statut_attendu"),
     [
-        "/admin/passkey/recuperation",
-        "/admin/passkey/recuperation/options",
-        "/admin/passkey/recuperation/verifier",
+        ("/admin/passkey/recuperation", 404),
+        ("/admin/passkey/recuperation/options", 405),
+        ("/admin/passkey/recuperation/verifier", 405),
     ],
 )
-def test_routes_recuperation_pas_encore_exposees(client, chemin):
-    """Les routes de récupération ne sont pas encore disponibles."""
+def test_routes_recuperation_methodes_http(client, chemin, statut_attendu):
+    """Vérifie les méthodes HTTP autorisées pour la récupération."""
 
     reponse = client.get(chemin)
 
-    assert reponse.status_code == 404
+    assert reponse.status_code == statut_attendu
+    assert reponse.headers["Cache-Control"] == "no-store"
+    assert reponse.headers["Pragma"] == "no-cache"

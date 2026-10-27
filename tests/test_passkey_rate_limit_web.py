@@ -6,6 +6,13 @@ import pytest
 
 from web.app import app
 
+ROUTES_PASSKEY_PROTEGEES = [
+    "/admin/passkey/amorcage/options",
+    "/admin/passkey/amorcage/verifier",
+    "/admin/passkey/recuperation/options",
+    "/admin/passkey/recuperation/verifier",
+]
+
 
 @pytest.fixture
 def client(monkeypatch):
@@ -31,13 +38,7 @@ def client(monkeypatch):
         app.config.update(ancienne_configuration)
 
 
-@pytest.mark.parametrize(
-    "route",
-    [
-        "/admin/passkey/amorcage/options",
-        "/admin/passkey/amorcage/verifier",
-    ],
-)
+@pytest.mark.parametrize("route", ROUTES_PASSKEY_PROTEGEES)
 def test_limite_depassee_retourne_429(client, route):
     """Une tentative excessive doit être refusée."""
 
@@ -52,13 +53,7 @@ def test_limite_depassee_retourne_429(client, route):
     assert "Trop de tentatives" in reponse.get_json()["erreur"]
 
 
-@pytest.mark.parametrize(
-    "route",
-    [
-        "/admin/passkey/amorcage/options",
-        "/admin/passkey/amorcage/verifier",
-    ],
-)
+@pytest.mark.parametrize("route", ROUTES_PASSKEY_PROTEGEES)
 def test_absence_cle_hmac_retourne_503(client, monkeypatch, route):
     """Le contrôle doit échouer si la clé HMAC est absente."""
 
@@ -69,15 +64,9 @@ def test_absence_cle_hmac_retourne_503(client, monkeypatch, route):
     assert reponse.status_code == 503
 
 
-@pytest.mark.parametrize(
-    "route",
-    [
-        "/admin/passkey/amorcage/options",
-        "/admin/passkey/amorcage/verifier",
-    ],
-)
+@pytest.mark.parametrize("route", ROUTES_PASSKEY_PROTEGEES)
 def test_erreur_postgresql_retourne_503(client, route):
-    """Une erreur du limiteur doit empêcher l'amorçage."""
+    """Une erreur du limiteur doit empêcher le traitement."""
 
     with patch(
         "web.app.verifier_limites_combinees_passkey",
@@ -88,13 +77,7 @@ def test_erreur_postgresql_retourne_503(client, route):
     assert reponse.status_code == 503
 
 
-@pytest.mark.parametrize(
-    "route",
-    [
-        "/admin/passkey/amorcage/options",
-        "/admin/passkey/amorcage/verifier",
-    ],
-)
+@pytest.mark.parametrize("route", ROUTES_PASSKEY_PROTEGEES)
 def test_tentative_autorisee_continue_traitement(client, route):
     """Une requête autorisée atteint le traitement existant."""
 
