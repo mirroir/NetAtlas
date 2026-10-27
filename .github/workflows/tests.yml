@@ -120,6 +120,10 @@ jobs:
           INSERT INTO public.role_user (user_id, role_id)
           VALUES (3, 1);
 
+          -- Autoriser le compte CI à hériter des politiques RLS
+          -- réservées au rôle applicatif de test.
+          GRANT netatlas_test_user TO netatlas_ci_user;
+
           GRANT CONNECT ON DATABASE netatlas_test TO netatlas_ci_user;
           GRANT USAGE ON SCHEMA public TO netatlas_ci_user;
 
@@ -238,7 +242,13 @@ jobs:
           SQL
 
       - name: Tests applicatifs et couverture
-        run: ./scripts/check_netatlas.sh ci
+        run: |
+          python -m pytest -q \
+            --ignore=tests/test_admin_passkey_recovery_integration.py \
+            --ignore=tests/test_admin_passkey_recovery_rls.py \
+            --cov=python \
+            --cov-report=term-missing \
+            --cov-fail-under=100
 
       - name: Tests PostgreSQL privilégiés
         env:
@@ -246,4 +256,6 @@ jobs:
           NETATLAS_SQL_ADMIN_DB: netatlas_test
           NETATLAS_SQL_ADMIN_PASSWORD: postgres
         run: |
-          python -m pytest -q tests/test_admin_passkey_recovery_integration.py
+          python -m pytest -q \
+            tests/test_admin_passkey_recovery_integration.py \
+            tests/test_admin_passkey_recovery_rls.py
