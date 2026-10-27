@@ -755,3 +755,219 @@ def test_recuperation_privileges_postgresql():
 
     assert "TEST OK : proprietaire postgres confirme" in sortie
     assert "TEST OK : privileges de finalisation securises" in sortie
+
+def test_identifier_admin_recuperation_passkey_sql():
+    """Vérifie les contrôles SQL de la migration 013."""
+
+    sortie = executer_sql_recuperation(
+        """
+        BEGIN;
+
+        DO $$
+        DECLARE
+            v_admin_id integer;
+            v_nom text;
+            v_token_valide bytea;
+            v_token_expire bytea;
+            v_token_consomme bytea;
+            v_token_inconnu bytea;
+        BEGIN
+            SELECT admin_user_id
+            INTO v_admin_id
+            FROM public.passkey_recovery_config
+            WHERE id = 1;
+
+            IF v_admin_id IS DISTINCT FROM 3 THEN
+                RAISE EXCEPTION
+                    'ECHEC : administrateur de test incorrect';
+            END IF;
+
+            v_token_valide := decode(
+                replace(gen_random_uuid()::text, '-', '')
+                || replace(gen_random_uuid()::text, '-', ''),
+                'hex'
+            );
+
+            v_token_expire := decode(
+                replace(gen_random_uuid()::text, '-', '')
+                || replace(gen_random_uuid()::text, '-', ''),
+                'hex'
+            );
+
+            v_token_consomme := decode(
+                replace(gen_random_uuid()::text, '-', '')
+                || replace(gen_random_uuid()::text, '-', ''),
+                'hex'
+            );
+
+            v_token_inconnu := decode(
+                replace(gen_random_uuid()::text, '-', '')
+                || replace(gen_random_uuid()::text, '-', ''),
+                'hex'
+            );
+
+            INSERT INTO public.passkey_recovery (
+                user_id,
+                token_hash,
+                expires_at,
+                requested_by
+            )
+            VALUES
+                (
+                    v_admin_id,
+                    v_token_valide,
+                    CURRENT_TIMESTAMP + INTERVAL '300 seconds',
+                    'test_sql_013'
+                ),
+                (
+                    v_admin_id,
+                    v_token_expire,
+                    CURRENT_TIMESTAMP - INTERVAL '1 second',
+                    'test_sql_013'
+                ),
+                (
+                    v_admin_id,
+                    v_token_consomme,
+                    CURRENT_TIMESTAMP + INTERVAL '300 seconds',
+                    'test_sql_013'
+                );
+
+            UPDATE public.passkey_recovery
+            SET consumed_at = CURRENT_TIMESTAMP
+            WHERE token_hash = v_token_consomme;
+
+            -- Jeton valide.
+            SELECT user_id, nom
+            INTO v_admin_id, v_nom
+            FROM public.identifier_admin_recuperation_passkey(
+                v_token_valide
+            );
+
+            IF v_admin_id IS DISTINCT FROM 3
+               OR v_nom IS NULL THEN
+                RAISE EXCEPTION
+                    'ECHEC : jeton valide refuse';
+            END IF;
+
+            RAISE NOTICE 'TEST OK : jeton valide accepte';
+
+            -- Vérification réelle sous le rôle applicatif.
+            EXECUTE 'SET LOCAL ROLE netatlas_test_user';
+
+            IF NOT EXISTS (
+                SELECT 1
+                FROM public.identifier_admin_recuperation_passkey(
+                    v_token_valide
+                )
+                WHERE user_id = 3
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : jeton valide refuse au role applicatif';
+            END IF;
+
+            EXECUTE 'RESET ROLE';
+
+            RAISE NOTICE
+                'TEST OK : jeton valide accepte par role applicatif';
+
+            -- Jeton expiré.
+            IF EXISTS (
+                SELECT 1
+                FROM public.identifier_admin_recuperation_passkey(
+                    v_token_expire
+                )
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : jeton expire accepte';
+            END IF;
+
+            RAISE NOTICE 'TEST OK : jeton expire refuse';
+
+            -- Jeton consommé.
+            IF EXISTS (
+                SELECT 1
+                FROM public.identifier_admin_recuperation_passkey(
+                    v_token_consomme
+                )
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : jeton consomme accepte';
+            END IF;
+
+            RAISE NOTICE 'TEST OK : jeton consomme refuse';
+
+            -- Jeton inconnu.
+            IF EXISTS (
+                SELECT 1
+                FROM public.identifier_admin_recuperation_passkey(
+                    v_token_inconnu
+                )
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : jeton inconnu accepte';
+            END IF;
+
+            RAISE NOTICE 'TEST OK : jeton inconnu refuse';
+
+            -- Empreinte invalide.
+            IF EXISTS (
+                SELECT 1
+                FROM public.identifier_admin_recuperation_passkey(
+                    decode('00', 'hex')
+                )
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : empreinte invalide acceptee';
+            END IF;
+
+            RAISE NOTICE 'TEST OK : empreinte invalide refusee';
+
+            -- Vérification des permissions.
+            IF NOT has_function_privilege(
+                'netatlas_test_user',
+                'public.identifier_admin_recuperation_passkey(bytea)',
+                'EXECUTE'
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : role applicatif non autorise';
+            END IF;
+
+            IF has_function_privilege(
+                'netatlas-recovery',
+                'public.identifier_admin_recuperation_passkey(bytea)',
+                'EXECUTE'
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : role SSH autorise';
+            END IF;
+
+            IF EXISTS (
+                SELECT 1
+                FROM pg_proc AS p
+                CROSS JOIN LATERAL aclexplode(p.proacl) AS a
+                WHERE p.oid = (
+                    'public.identifier_admin_recuperation_passkey(bytea)'
+                )::regprocedure
+                  AND a.grantee = 0
+                  AND a.privilege_type = 'EXECUTE'
+            ) THEN
+                RAISE EXCEPTION
+                    'ECHEC : acces PUBLIC autorise';
+            END IF;
+
+            RAISE NOTICE 'TEST OK : permissions SQL securisees';
+
+        END
+        $$;
+
+        ROLLBACK;
+        """
+    )
+
+    assert "TEST OK : jeton valide accepte" in sortie
+    assert "TEST OK : jeton expire refuse" in sortie
+    assert "TEST OK : jeton consomme refuse" in sortie
+    assert "TEST OK : jeton inconnu refuse" in sortie
+    assert "TEST OK : empreinte invalide refusee" in sortie
+    assert "TEST OK : permissions SQL securisees" in sortie
+    assert "TEST OK : jeton valide accepte par role applicatif" in sortie

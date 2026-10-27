@@ -2503,6 +2503,89 @@ def finaliser_amorcage_passkey_admin(
 # PASSKEY - LIMITATION ATOMIQUE DES TENTATIVES
 # ============================================================
 
+def identifier_admin_recuperation_passkey(token_hash):
+    """Identifie l'administrateur autorisé à récupérer sa Passkey."""
+
+    if not isinstance(token_hash, bytes) or len(token_hash) != 32:
+        raise ValueError("Empreinte du jeton invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT user_id, nom
+                FROM public.identifier_admin_recuperation_passkey(%s)
+                """,
+                (token_hash,),
+            )
+
+            resultat = curseur.fetchone()
+
+        if resultat is None:
+            return None
+
+        return {
+            "user_id": resultat[0],
+            "nom": resultat[1],
+        }
+
+    finally:
+        connexion.close()
+
+def preparer_recuperation_passkey_admin(
+    token_hash,
+    challenge_hash,
+    session_binding_hash,
+):
+    """Prépare un challenge de récupération Passkey administrateur."""
+
+    for nom, valeur in (
+        ("jeton", token_hash),
+        ("challenge", challenge_hash),
+        ("tentative", session_binding_hash),
+    ):
+        if not isinstance(valeur, bytes) or len(valeur) != 32:
+            raise ValueError(f"Empreinte {nom} invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT user_id, nom
+                FROM public.preparer_recuperation_passkey_admin(
+                    %s, %s, %s
+                )
+                """,
+                (
+                    token_hash,
+                    challenge_hash,
+                    session_binding_hash,
+                ),
+            )
+
+            resultat = curseur.fetchone()
+
+        connexion.commit()
+
+        if resultat is None:
+            return None
+
+        return {
+            "user_id": resultat[0],
+            "nom": resultat[1],
+        }
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
 
 def verifier_limite_tentatives_passkey(
     key_hash,

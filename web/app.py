@@ -333,13 +333,24 @@ def options_enregistrement_passkey_admin():
     ).digest()
 
     # Enregistrer le challenge avec une expiration de 60 secondes.
-    enregistrer_challenge_webauthn(
-        challenge_hash=challenge_hash,
-        session_binding_hash=session_binding_hash,
-        operation="registration",
-        user_id=user_id,
-        duree_secondes=60,
-    )
+    try:
+        enregistrer_challenge_webauthn(
+            challenge_hash=challenge_hash,
+            session_binding_hash=session_binding_hash,
+            operation="registration",
+            user_id=user_id,
+            duree_secondes=60,
+        )
+    except (RuntimeError, OSError):
+        # Ne conserver aucune tentative après un échec PostgreSQL.
+        session.pop("passkey_registration", None)
+
+        # Ne jamais exposer les détails internes au navigateur.
+        return app.response_class(
+            response="Erreur interne lors de la préparation Passkey.",
+            status=500,
+            mimetype="text/plain",
+        )
 
     # Conserver les données temporaires pour la vérification.
     session["passkey_registration"] = {
@@ -430,7 +441,7 @@ def verifier_enregistrement_passkey_admin():
 # ============================================================
 
 
-def limiter_tentatives_amorcage(fonction):
+def limiter_tentatives_passkey(fonction):
     """Protège les routes d'amorçage contre les tentatives excessives."""
 
     @wraps(fonction)
@@ -500,21 +511,24 @@ def limiter_tentatives_amorcage(fonction):
 
     return fonction_protegee
 
-
 @app.after_request
-def securiser_reponses_amorcage(reponse):
-    """Empêche la mise en cache des réponses d'amorçage Passkey."""
+def securiser_reponses_passkey(reponse):
+    """Empêche la mise en cache des parcours Passkey sensibles."""
 
-    if request.path in (
+    chemins_proteges = (
         "/admin/passkey/amorcage",
-        "/admin/passkey/amorcage/options",
-        "/admin/passkey/amorcage/verifier",
+        "/admin/passkey/recuperation",
+    )
+
+    if any(
+        request.path == chemin
+        or request.path.startswith(chemin + "/")
+        for chemin in chemins_proteges
     ):
         reponse.headers["Cache-Control"] = "no-store"
         reponse.headers["Pragma"] = "no-cache"
 
     return reponse
-
 
 @app.get("/admin/passkey/amorcage")
 def page_amorcage_passkey_admin():
@@ -528,7 +542,7 @@ def page_amorcage_passkey_admin():
     return reponse
 
 @app.post("/admin/passkey/amorcage/options")
-@limiter_tentatives_amorcage
+@limiter_tentatives_passkey
 def options_amorcage_passkey_admin():
     """Prépare la première Passkey administrateur avec un jeton temporaire."""
 
@@ -591,7 +605,7 @@ def options_amorcage_passkey_admin():
 
 
 @app.post("/admin/passkey/amorcage/verifier")
-@limiter_tentatives_amorcage
+@limiter_tentatives_passkey
 def verifier_amorcage_passkey_admin_web():
     """Finalise la première Passkey administrateur."""
 

@@ -101,7 +101,8 @@ jobs:
             database/009_prepare_passkey_recovery.sql \
             database/010_prepare_passkey_recovery.sql \
             database/011_prepare_admin_passkey_recovery.sql \
-            database/012_finalize_admin_passkey_recovery.sql
+            database/012_finalize_admin_passkey_recovery.sql \
+            database/013_identify_admin_passkey_recovery.sql
           do
             echo "[INFO] Migration : $migration"
             psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f "$migration"
