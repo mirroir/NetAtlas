@@ -126,6 +126,46 @@ def authentifier_utilisateur(nom, pin, role_nom):
         connexion.close()
 
 
+def get_utilisateur_webauthn(user_id, role_nom):
+    """Récupère un utilisateur possédant le rôle attendu."""
+
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        raise ValueError("Identifiant utilisateur invalide.")
+
+    if role_nom not in ("admin", "utilisateur"):
+        raise ValueError("Rôle utilisateur invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT u.id, u.nom, r.nom
+                FROM users u
+                JOIN role_user ru ON ru.user_id = u.id
+                JOIN roles r ON r.id = ru.role_id
+                WHERE u.id = %s
+                  AND r.nom = %s
+                """,
+                (user_id, role_nom),
+            )
+
+            resultat = curseur.fetchone()
+
+            if resultat is None:
+                return None
+
+            return {
+                "user_id": resultat[0],
+                "nom": resultat[1],
+                "role": resultat[2],
+            }
+
+    finally:
+        connexion.close()
+
+
 def get_categories():
     connexion = connexion_db()
     
@@ -2125,3 +2165,562 @@ def finaliser_enregistrement_webauthn(
         connexion.close()
 
 
+def get_admin_passkey_bootstrap(user_id):
+    """Récupère un administrateur autorisé à initialiser sa Passkey."""
+
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        return None
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT u.id, u.nom
+                FROM users u
+                JOIN role_user ru ON ru.user_id = u.id
+                JOIN roles r ON r.id = ru.role_id
+                WHERE u.id = %s
+                  AND r.nom = 'admin'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM webauthn_credentials w
+                      WHERE w.user_id = u.id
+                  )
+                """,
+                (user_id,),
+            )
+
+            resultat = curseur.fetchone()
+
+        if resultat is None:
+            return None
+
+        return {
+            "user_id": resultat[0],
+            "nom": resultat[1],
+        }
+
+    finally:
+        connexion.close()
+
+
+# ============================================================
+# PASSKEY - AMORCAGE INITIAL ADMINISTRATEUR
+# ============================================================
+
+
+def creer_amorcage_passkey_admin(user_id, token_hash, duree_secondes=300):
+    """Crée une autorisation temporaire pour la première Passkey admin."""
+
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        raise ValueError("Identifiant administrateur invalide.")
+
+    if not isinstance(token_hash, bytes) or len(token_hash) != 32:
+        raise ValueError("Empreinte du jeton invalide.")
+
+    if not isinstance(duree_secondes, int) or not 1 <= duree_secondes <= 300:
+        raise ValueError("Durée d'amorçage invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            # Sérialiser les initialisations concurrentes du même compte.
+            curseur.execute(
+                "SELECT id FROM users WHERE id = %s FOR UPDATE",
+                (user_id,),
+            )
+
+            if curseur.fetchone() is None:
+                raise ValueError("Compte administrateur introuvable.")
+
+            curseur.execute(
+                """
+                SELECT 1
+                FROM role_user ru
+                JOIN roles r ON r.id = ru.role_id
+                WHERE ru.user_id = %s
+                  AND r.nom = 'admin'
+                """,
+                (user_id,),
+            )
+
+            if curseur.fetchone() is None:
+                raise ValueError("Compte non administrateur.")
+
+            curseur.execute(
+                """
+                SELECT 1
+                FROM webauthn_credentials
+                WHERE user_id = %s
+                LIMIT 1
+                """,
+                (user_id,),
+            )
+
+            if curseur.fetchone() is not None:
+                raise ValueError("Une Passkey existe déjà pour ce compte.")
+
+            # Invalider les autorisations précédentes.
+            curseur.execute(
+                """
+                UPDATE passkey_bootstrap
+                SET consumed_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                  AND consumed_at IS NULL
+                """,
+                (user_id,),
+            )
+
+            curseur.execute(
+                """
+                INSERT INTO passkey_bootstrap
+                    (user_id, token_hash, expires_at)
+                VALUES (
+                    %s,
+                    %s,
+                    CURRENT_TIMESTAMP + (%s * INTERVAL '1 second')
+                )
+                RETURNING id
+                """,
+                (user_id, token_hash, duree_secondes),
+            )
+
+            amorcage_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return amorcage_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+
+def verifier_amorcage_passkey_admin(user_id, token_hash):
+    """Vérifie un jeton d'amorçage sans le consommer."""
+
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
+        return False
+
+    if not isinstance(token_hash, bytes) or len(token_hash) != 32:
+        return False
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT 1
+                FROM passkey_bootstrap b
+                JOIN role_user ru ON ru.user_id = b.user_id
+                JOIN roles r ON r.id = ru.role_id
+                WHERE b.user_id = %s
+                  AND b.token_hash = %s
+                  AND b.expires_at > CURRENT_TIMESTAMP
+                  AND b.consumed_at IS NULL
+                  AND r.nom = 'admin'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM webauthn_credentials w
+                      WHERE w.user_id = b.user_id
+                  )
+                LIMIT 1
+                """,
+                (user_id, token_hash),
+            )
+
+            return curseur.fetchone() is not None
+
+    finally:
+        connexion.close()
+
+# ============================================================
+# PASSKEY - FINALISATION ATOMIQUE DE L'AMORCAGE ADMIN
+# ============================================================
+
+
+def finaliser_amorcage_passkey_admin(
+    user_id,
+    token_hash,
+    challenge_hash,
+    session_binding_hash,
+    credential_id,
+    public_key,
+    sign_count=0,
+):
+    """Enregistre la première Passkey admin dans une transaction unique."""
+
+    if (
+        not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+    ):
+        raise ValueError("Identifiant administrateur invalide.")
+
+    for nom, valeur in (
+        ("jeton", token_hash),
+        ("challenge", challenge_hash),
+        ("tentative", session_binding_hash),
+    ):
+        if not isinstance(valeur, bytes) or len(valeur) != 32:
+            raise ValueError(f"Empreinte {nom} invalide.")
+
+    if not isinstance(credential_id, bytes) or not credential_id:
+        raise ValueError("Identifiant Passkey invalide.")
+
+    if not isinstance(public_key, bytes) or not public_key:
+        raise ValueError("Clé publique invalide.")
+
+    if (
+        not isinstance(sign_count, int)
+        or isinstance(sign_count, bool)
+        or sign_count < 0
+    ):
+        raise ValueError("Compteur WebAuthn invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            # Verrouiller le compte pour sérialiser les amorçages.
+            curseur.execute(
+                "SELECT id FROM users WHERE id = %s FOR UPDATE",
+                (user_id,),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+            # Vérifier le rôle administrateur actuel.
+            curseur.execute(
+                """
+                SELECT 1
+                FROM role_user ru
+                JOIN roles r ON r.id = ru.role_id
+                WHERE ru.user_id = %s
+                  AND r.nom = 'admin'
+                """,
+                (user_id,),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+            # Refuser l'amorçage si une Passkey existe déjà.
+            curseur.execute(
+                """
+                SELECT 1
+                FROM webauthn_credentials
+                WHERE user_id = %s
+                LIMIT 1
+                """,
+                (user_id,),
+            )
+
+            if curseur.fetchone() is not None:
+                connexion.rollback()
+                return False
+
+            # Consommer le jeton temporaire.
+            curseur.execute(
+                """
+                UPDATE passkey_bootstrap
+                SET consumed_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+                  AND token_hash = %s
+                  AND expires_at > CURRENT_TIMESTAMP
+                  AND consumed_at IS NULL
+                RETURNING id
+                """,
+                (user_id, token_hash),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+            # Consommer le challenge WebAuthn.
+            curseur.execute(
+                """
+                UPDATE webauthn_challenges
+                SET consumed_at = CURRENT_TIMESTAMP
+                WHERE challenge_hash = %s
+                  AND session_binding_hash = %s
+                  AND operation = 'registration'
+                  AND user_id = %s
+                  AND expires_at > CURRENT_TIMESTAMP
+                  AND consumed_at IS NULL
+                RETURNING id
+                """,
+                (
+                    challenge_hash,
+                    session_binding_hash,
+                    user_id,
+                ),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+            # Enregistrer la Passkey vérifiée par le service WebAuthn.
+            curseur.execute(
+                """
+                INSERT INTO webauthn_credentials
+                    (user_id, credential_id, public_key, sign_count)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    user_id,
+                    credential_id,
+                    public_key,
+                    sign_count,
+                ),
+            )
+
+            credential_db_id = curseur.fetchone()[0]
+
+        connexion.commit()
+        return credential_db_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+# ============================================================
+# PASSKEY - LIMITATION ATOMIQUE DES TENTATIVES
+# ============================================================
+
+
+def verifier_limite_tentatives_passkey(
+    key_hash,
+    limite,
+    fenetre_secondes=300,
+):
+    """Comptabilise une tentative et retourne (autorisee, attente)."""
+
+    if not isinstance(key_hash, bytes) or len(key_hash) != 32:
+        raise ValueError("Empreinte de limitation invalide.")
+
+    if (
+        not isinstance(limite, int)
+        or isinstance(limite, bool)
+        or limite <= 0
+    ):
+        raise ValueError("Limite de tentatives invalide.")
+
+    if (
+        not isinstance(fenetre_secondes, int)
+        or isinstance(fenetre_secondes, bool)
+        or not 1 <= fenetre_secondes <= 3600
+    ):
+        raise ValueError("Fenêtre temporelle invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                INSERT INTO public.passkey_rate_limits AS compteur (
+                    key_hash,
+                    attempts,
+                    window_started_at,
+                    updated_at
+                )
+                VALUES (
+                    %s,
+                    1,
+                    CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP
+                )
+                ON CONFLICT (key_hash)
+                DO UPDATE SET
+                    attempts = CASE
+                        WHEN compteur.window_started_at
+                             + (%s * INTERVAL '1 second')
+                             <= CURRENT_TIMESTAMP
+                        THEN 1
+                        ELSE compteur.attempts + 1
+                    END,
+                    window_started_at = CASE
+                        WHEN compteur.window_started_at
+                             + (%s * INTERVAL '1 second')
+                             <= CURRENT_TIMESTAMP
+                        THEN CURRENT_TIMESTAMP
+                        ELSE compteur.window_started_at
+                    END,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING
+                    attempts,
+                    GREATEST(
+                        0,
+                        CEIL(
+                            EXTRACT(
+                                EPOCH FROM (
+                                    window_started_at
+                                    + (%s * INTERVAL '1 second')
+                                    - CURRENT_TIMESTAMP
+                                )
+                            )
+                        )
+                    )::integer
+                """,
+                (
+                    key_hash,
+                    fenetre_secondes,
+                    fenetre_secondes,
+                    fenetre_secondes,
+                ),
+            )
+
+            tentatives, attente = curseur.fetchone()
+
+        connexion.commit()
+
+        return tentatives <= limite, 0 if tentatives <= limite else attente
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+def verifier_limites_combinees_passkey(
+    cle_ip,
+    cle_globale,
+    limite_ip=10,
+    limite_globale=100,
+    fenetre_secondes=300,
+):
+    """Comptabilise les tentatives IP et globales atomiquement."""
+
+    if (
+        not isinstance(cle_ip, bytes)
+        or len(cle_ip) != 32
+        or not isinstance(cle_globale, bytes)
+        or len(cle_globale) != 32
+        or cle_ip == cle_globale
+    ):
+        raise ValueError("Clés de limitation invalides.")
+
+    if any(
+        not isinstance(valeur, int)
+        or isinstance(valeur, bool)
+        or valeur <= 0
+        for valeur in (limite_ip, limite_globale)
+    ):
+        raise ValueError("Limites de tentatives invalides.")
+
+    if (
+        not isinstance(fenetre_secondes, int)
+        or isinstance(fenetre_secondes, bool)
+        or not 1 <= fenetre_secondes <= 3600
+    ):
+        raise ValueError("Fenêtre temporelle invalide.")
+
+    limites = {
+        cle_ip: limite_ip,
+        cle_globale: limite_globale,
+    }
+
+    resultats = {}
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            for cle in sorted(limites):
+                curseur.execute(
+                    """
+                    INSERT INTO public.passkey_rate_limits AS compteur (
+                        key_hash,
+                        attempts,
+                        window_started_at,
+                        updated_at
+                    )
+                    VALUES (
+                        %s,
+                        1,
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (key_hash)
+                    DO UPDATE SET
+                        attempts = CASE
+                            WHEN compteur.window_started_at
+                                 + (%s * INTERVAL '1 second')
+                                 <= CURRENT_TIMESTAMP
+                            THEN 1
+                            ELSE compteur.attempts + 1
+                        END,
+                        window_started_at = CASE
+                            WHEN compteur.window_started_at
+                                 + (%s * INTERVAL '1 second')
+                                 <= CURRENT_TIMESTAMP
+                            THEN CURRENT_TIMESTAMP
+                            ELSE compteur.window_started_at
+                        END,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING
+                        attempts,
+                        GREATEST(
+                            0,
+                            CEIL(
+                                EXTRACT(
+                                    EPOCH FROM (
+                                        window_started_at
+                                        + (%s * INTERVAL '1 second')
+                                        - CURRENT_TIMESTAMP
+                                    )
+                                )
+                            )
+                        )::integer
+                    """,
+                    (
+                        cle,
+                        fenetre_secondes,
+                        fenetre_secondes,
+                        fenetre_secondes,
+                    ),
+                )
+
+                tentatives, attente = curseur.fetchone()
+
+                resultats[cle] = (
+                    tentatives <= limites[cle],
+                    attente,
+                )
+
+        connexion.commit()
+
+        autorisee_ip, attente_ip = resultats[cle_ip]
+        autorisee_globale, attente_globale = resultats[cle_globale]
+
+        autorisee = autorisee_ip and autorisee_globale
+
+        attente = max(
+            attente_ip if not autorisee_ip else 0,
+            attente_globale if not autorisee_globale else 0,
+        )
+
+        return autorisee, attente
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()

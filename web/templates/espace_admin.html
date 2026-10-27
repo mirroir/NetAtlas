@@ -1,67 +1,93 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>NetAtlas - Administration</title>
+		<title>NetAtlas - Administration</title>
 
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='style.css') }}"
-    >
-</head>
+		<link
+				rel="stylesheet"
+				href="{{ url_for('static', filename='style.css') }}"
+				>
+	</head>
+		<script src="{{ url_for('static', filename='passkey_admin.js') }}" defer></script>
+		<body>
+			<a class="logo logo-home" href="{{ url_for('accueil') }}">
+				NETATLAS
+			</a>
 
-<body>
-    <a class="logo logo-home" href="{{ url_for('accueil') }}">
-        NETATLAS
-    </a>
+			<main class="page-admin">
+				<section class="admin-contenu">
 
-    <main class="page-admin">
-        <section class="admin-contenu">
+					<h1>Espace Administrateur</h1>
 
-            <h1>Espace Administrateur</h1>
+					<p>Bienvenue, {{ nom }}.</p>
 
-            <p>Bienvenue, {{ nom }}.</p>
+					<h2>Tableau de bord NetAtlas</h2>
 
-            <h2>Tableau de bord NetAtlas</h2>
+					<p>
+					Administration et supervision de la plateforme.
+					</p>
 
-            <p>
-                Administration et supervision de la plateforme.
-            </p>
+					<h3>Gestion des données</h3>
 
-            <h3>Gestion des données</h3>
+					<p>Gestion des lieux : prochainement disponible.</p>
+					<p>Modération des contenus : prochainement disponible.</p>
+					<p>Suivi des importations : prochainement disponible.</p>
 
-            <p>Gestion des lieux : prochainement disponible.</p>
-            <p>Modération des contenus : prochainement disponible.</p>
-            <p>Suivi des importations : prochainement disponible.</p>
+					<h3>Sécurité</h3>
 
-            <h3>Sécurité</h3>
+					<p>Surveillance SSH et Fail2ban : prochainement disponible.</p>
 
-            <p>Surveillance SSH et Fail2ban : prochainement disponible.</p>
+					<h4>Authentification Passkey</h4>
 
-            <h3>Supervision système</h3>
+					<p>
+					Enregistrer une clé d'accès sécurisée pour
+					votre compte administrateur.
+					</p>
 
-            <p>CPU, mémoire et espace disque : prochainement disponible.</p>
+					<input
+							type="hidden"
+							id="passkey-csrf-token"
+							value="{{ csrf_token() }}"
+							>
 
-            <h3>Journaux</h3>
+							<button
+									type="button"
+									id="enregistrer-passkey"
+									class="choix-acces"
+									>
+									Enregistrer une Passkey
+							</button>
 
-            <p>Consultation des événements : prochainement disponible.</p>
+								<p
+										id="passkey-message"
+										role="status"
+										aria-live="polite"
+										></p>
 
-            <h3>Sauvegardes</h3>
 
-            <p>Historique et planification : prochainement disponible.</p>
+								<h3>Supervision système</h3>
 
-            <a
-                class="choix-acces"
-                href="{{ url_for('deconnexion') }}"
-            >
-                Se déconnecter
-            </a>
+								<p>CPU, mémoire et espace disque : prochainement disponible.</p>
 
-        </section>
-    </main>
-</body>
+								<h3>Journaux</h3>
+
+								<p>Consultation des événements : prochainement disponible.</p>
+
+								<h3>Sauvegardes</h3>
+
+								<p>Historique et planification : prochainement disponible.</p>
+
+								<a
+										class="choix-acces"
+										href="{{ url_for('deconnexion') }}"
+										>
+										Se déconnecter
+								</a>
+
+				</section>
+			</main>
+		</body>
 </html>
-
-

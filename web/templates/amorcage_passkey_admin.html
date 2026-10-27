@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>NetAtlas - Initialisation Passkey administrateur</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+
+    <script
+        src="{{ url_for('static', filename='passkey_amorcage.js') }}"
+        defer
+    ></script>
+</head>
+
+<body>
+    <a class="logo logo-home" href="{{ url_for('accueil') }}">
+        NETATLAS
+    </a>
+
+    <main class="page-acces">
+        <section class="acces-contenu">
+
+            <h1>Initialisation de la Passkey administrateur</h1>
+
+            <p>
+                Cette opération permet de créer la première Passkey
+                du compte administrateur NetAtlas.
+            </p>
+
+            <p>
+                Une autorisation temporaire générée localement
+                sur le serveur Ubuntu est obligatoire.
+            </p>
+
+            <form id="formulaire-amorcage">
+
+                <input
+                    type="hidden"
+                    id="passkey-amorcage-csrf"
+                    value="{{ csrf_token() }}"
+                >
+
+                <p>
+                    <label for="jeton-amorcage">
+                        Jeton temporaire d'amorçage
+                    </label>
+                </p>
+
+                <p>
+                    <input
+                        type="password"
+                        id="jeton-amorcage"
+                        autocomplete="off"
+                        spellcheck="false"
+                        minlength="64"
+                        maxlength="64"
+                        required
+                    >
+                </p>
+
+                <button
+                    type="submit"
+                    id="bouton-amorcage"
+                    class="choix-acces"
+                >
+                    Enregistrer ma première Passkey
+                </button>
+
+            </form>
+
+            <p
+                id="message-amorcage"
+                role="status"
+                aria-live="polite"
+            ></p>
+
+            <a class="choix-acces" href="{{ url_for('acces') }}">
+                Retour
+            </a>
+
+        </section>
+    </main>
+</body>
+</html>

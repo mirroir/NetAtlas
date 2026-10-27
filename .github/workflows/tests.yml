@@ -29,6 +29,7 @@ jobs:
         run: ./scripts/check_netatlas.sh ruff
 
   tests:
+    name: Tests applicatifs et PostgreSQL
     runs-on: ubuntu-latest
 
     services:
@@ -41,7 +42,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready"
+          --health-cmd="pg_isready -U postgres -d netatlas_test"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -53,6 +54,7 @@ jobs:
       DB_NAME: netatlas_test
       DB_USER: netatlas_ci_user
       DB_PASSWORD: netatlas_ci_password
+      NETATLAS_RATE_LIMIT_SECRET: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
     steps:
       - name: Récupérer le code
@@ -68,52 +70,178 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Préparer PostgreSQL
+      - name: Préparer les rôles PostgreSQL
         env:
           PGPASSWORD: postgres
         run: |
-          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/test_schema.sql
-          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/test_seed.sql
+          psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test <<'SQL'
+          CREATE ROLE netatlas_ci_user LOGIN PASSWORD 'netatlas_ci_password';
+          CREATE ROLE netatlas_test_user NOLOGIN;
+          CREATE ROLE "netatlas-recovery" NOLOGIN;
+          SQL
 
-          # Création des tables WebAuthn avant les autorisations CI
-          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/001_create_webauthn_credentials.sql
-          psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/002_create_webauthn_challenges.sql
-          psql -h localhost -U postgres -d netatlas_test <<'SQL'
-          CREATE USER netatlas_ci_user WITH PASSWORD 'netatlas_ci_password';
+      - name: Initialiser la base et appliquer les migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+
+          psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/test_schema.sql
+          psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f database/test_seed.sql
+
+          for migration in \
+            database/001_create_webauthn_credentials.sql \
+            database/002_create_webauthn_challenges.sql \
+            database/003_create_passkey_bootstrap.sql \
+            database/004_create_passkey_rate_limit.sql \
+            database/005_create_passkey_recovery.sql \
+            database/006_create_passkey_recovery_functions.sql \
+            database/007_configure_passkey_recovery_admin.sql \
+            database/008_secure_passkey_recovery_request.sql \
+            database/009_prepare_passkey_recovery.sql \
+            database/010_prepare_passkey_recovery.sql \
+            database/011_prepare_admin_passkey_recovery.sql \
+            database/012_finalize_admin_passkey_recovery.sql
+          do
+            echo "[INFO] Migration : $migration"
+            psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f "$migration"
+          done
+
+      - name: Configurer les permissions applicatives CI
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test <<'SQL'
+          BEGIN;
+
+          -- Administrateur de récupération dans la base CI.
+          INSERT INTO public.role_user (user_id, role_id)
+          VALUES (3, 1);
 
           GRANT CONNECT ON DATABASE netatlas_test TO netatlas_ci_user;
           GRANT USAGE ON SCHEMA public TO netatlas_ci_user;
 
-          GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public
+          -- Permissions sur les tables applicatives existantes.
+          -- Les tables sensibles de récupération sont exclues.
+
+          GRANT SELECT, INSERT, UPDATE ON TABLE
+              public.addresses,
+              public.avis,
+              public.categories,
+              public.documents,
+              public.favoris,
+              public.history,
+              public.imports,
+              public.lieu_prod,
+              public.opening_hours,
+              public.pays,
+              public.photos,
+              public.place_services,
+              public.place_tags,
+              public.tag_proposals,
+              public.places,
+              public.produits,
+              public.regions,
+              public.role_user,
+              public.roles,
+              public.services,
+              public.sources,
+              public.subcategories,
+              public.tags,
+              public.territoires,
+              public.users,
+              public.place_reactions,
+              public.villes,
+              public.webauthn_credentials,
+              public.webauthn_challenges,
+              public.passkey_bootstrap,
+              public.passkey_rate_limits
           TO netatlas_ci_user;
 
-          GRANT DELETE ON TABLE public.avis
-          TO netatlas_ci_user;
-
-          GRANT DELETE ON TABLE public.place_reactions
-          TO netatlas_ci_user;
-
-          GRANT DELETE ON TABLE public.tags
-          TO netatlas_ci_user;
-
-          GRANT DELETE ON TABLE public.tag_proposals
-          TO netatlas_ci_user;
-
-          GRANT DELETE ON TABLE public.webauthn_challenges
-          TO netatlas_ci_user;
-
-          GRANT DELETE ON TABLE public.webauthn_credentials
-          TO netatlas_ci_user;
-
-          GRANT DELETE ON TABLE public.place_tags
+          -- Suppressions autorisées par les tests applicatifs.
+          GRANT DELETE ON TABLE
+              public.avis,
+              public.place_reactions,
+              public.tags,
+              public.tag_proposals,
+              public.webauthn_challenges,
+              public.webauthn_credentials,
+              public.passkey_rate_limits,
+              public.passkey_bootstrap,
+              public.place_tags
           TO netatlas_ci_user;
 
           GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
           TO netatlas_ci_user;
+
+          -- Aucun accès direct aux tables sensibles de récupération.
+          REVOKE ALL ON TABLE
+              public.passkey_recovery,
+              public.passkey_recovery_audit,
+              public.passkey_recovery_config
+          FROM netatlas_ci_user;
+
+          -- Aucune exécution de la finalisation par l'application.
+          REVOKE ALL ON FUNCTION
+              public.finaliser_recuperation_passkey_admin(
+                  bytea, bytea, bytea, bytea, bytea, integer
+              )
+          FROM netatlas_ci_user;
+
+          COMMIT;
           SQL
 
-      - name: Tests et Couverture
-        run: ./scripts/check_netatlas.sh tests
+      - name: Vérifier les restrictions du compte applicatif
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test <<'SQL'
+          DO $$
+          BEGIN
+              IF has_function_privilege(
+                  'netatlas_ci_user',
+                  'public.finaliser_recuperation_passkey_admin(bytea,bytea,bytea,bytea,bytea,integer)',
+                  'EXECUTE'
+              ) THEN
+                  RAISE EXCEPTION 'Finalisation accessible au compte CI';
+              END IF;
 
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.passkey_recovery',
+                  'SELECT,INSERT,UPDATE,DELETE'
+              ) THEN
+                  RAISE EXCEPTION 'Table de récupération accessible au compte CI';
+              END IF;
 
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.passkey_recovery_config',
+                  'SELECT,INSERT,UPDATE,DELETE'
+              ) THEN
+                  RAISE EXCEPTION 'Configuration accessible au compte CI';
+              END IF;
 
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.passkey_recovery_audit',
+                  'SELECT,INSERT,UPDATE,DELETE'
+              ) THEN
+                  RAISE EXCEPTION 'Audit accessible au compte CI';
+              END IF;
+
+              RAISE NOTICE 'Restrictions PostgreSQL CI validées';
+          END
+          $$;
+          SQL
+
+      - name: Tests applicatifs et couverture
+        run: ./scripts/check_netatlas.sh ci
+
+      - name: Tests PostgreSQL privilégiés
+        env:
+          NETATLAS_SQL_TEST_MODE: ci
+          NETATLAS_SQL_ADMIN_DB: netatlas_test
+          NETATLAS_SQL_ADMIN_PASSWORD: postgres
+        run: |
+          python -m pytest -q tests/test_admin_passkey_recovery_integration.py

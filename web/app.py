@@ -12,10 +12,14 @@ from webauthn.helpers.exceptions import WebAuthnException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
+import hmac
+from functools import wraps
+
 from webauthn_service import (
     generer_options_enregistrement,
     verifier_enregistrement,
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from database import (
     ajouter_avis,
@@ -23,7 +27,9 @@ from database import (
     creer_utilisateur,
     enregistrer_challenge_webauthn,
     enregistrer_reaction,
+    finaliser_amorcage_passkey_admin,
     finaliser_enregistrement_webauthn,
+    get_admin_passkey_bootstrap,
     get_avis_by_place,
     get_contexte_recherche,
     get_lieux_par_categorie_pays_territoire_ville,
@@ -36,9 +42,24 @@ from database import (
     get_user_reaction,
     get_villes_par_categorie_pays_territoire,
     rechercher_global,
+    verifier_amorcage_passkey_admin,
+    verifier_limites_combinees_passkey,
 )
 
 app = Flask(__name__)
+
+# ============================================================
+# REVERSE PROXY CADDY
+# ============================================================
+
+# Un seul reverse proxy de confiance devant Flask.
+# Flask doit rester accessible uniquement sur 127.0.0.1.
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,
+    x_proto=1,
+    x_host=1,
+)
 
 # ============================================================
 # SECURITE DES COOKIES DE SESSION
@@ -395,6 +416,236 @@ def verifier_enregistrement_passkey_admin():
 
     return jsonify({
         "message": "Passkey administrateur enregistrée.",
+        "credential_id": resultat,
+    }), 201
+
+
+# ============================================================
+# PASSKEY - AMORCAGE INITIAL ADMINISTRATEUR
+# ============================================================
+
+
+# ============================================================
+# PASSKEY - PROTECTION CONTRE LES TENTATIVES EXCESSIVES
+# ============================================================
+
+
+def limiter_tentatives_amorcage(fonction):
+    """Protège les routes d'amorçage contre les tentatives excessives."""
+
+    @wraps(fonction)
+    def fonction_protegee(*args, **kwargs):
+        secret = os.getenv("NETATLAS_RATE_LIMIT_SECRET")
+
+        if not secret or len(secret) != 64:
+            app.logger.error(
+                "Clé HMAC du limiteur Passkey absente ou invalide."
+            )
+            return jsonify({
+                "erreur": "Service temporairement indisponible."
+            }), 503
+
+        try:
+            cle_secrete = bytes.fromhex(secret)
+        except ValueError:
+            app.logger.error("Clé HMAC du limiteur Passkey invalide.")
+            return jsonify({
+                "erreur": "Service temporairement indisponible."
+            }), 503
+
+        adresse_ip = request.remote_addr
+
+        if not adresse_ip:
+            return jsonify({
+                "erreur": "Adresse réseau indisponible."
+            }), 503
+
+        cle_ip = hmac.new(
+            cle_secrete,
+            b"netatlas:passkey:ip:" + adresse_ip.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+
+        cle_globale = hmac.new(
+            cle_secrete,
+            b"netatlas:passkey:global",
+            hashlib.sha256,
+        ).digest()
+
+        try:
+            autorisee, attente = verifier_limites_combinees_passkey(
+                cle_ip=cle_ip,
+                cle_globale=cle_globale,
+                limite_ip=10,
+                limite_globale=100,
+                fenetre_secondes=300,
+            )
+        except Exception:
+            app.logger.exception(
+                "Échec du contrôle de limitation Passkey."
+            )
+            return jsonify({
+                "erreur": "Service temporairement indisponible."
+            }), 503
+
+        if not autorisee:
+            reponse = jsonify({
+                "erreur": "Trop de tentatives. Réessayez plus tard."
+            })
+            reponse.status_code = 429
+            reponse.headers["Retry-After"] = str(max(1, attente))
+            return reponse
+
+        return fonction(*args, **kwargs)
+
+    return fonction_protegee
+
+
+@app.after_request
+def securiser_reponses_amorcage(reponse):
+    """Empêche la mise en cache des réponses d'amorçage Passkey."""
+
+    if request.path in (
+        "/admin/passkey/amorcage",
+        "/admin/passkey/amorcage/options",
+        "/admin/passkey/amorcage/verifier",
+    ):
+        reponse.headers["Cache-Control"] = "no-store"
+        reponse.headers["Pragma"] = "no-cache"
+
+    return reponse
+
+
+@app.get("/admin/passkey/amorcage")
+def page_amorcage_passkey_admin():
+    """Affiche la page d'initialisation de la première Passkey."""
+
+    reponse = app.make_response(
+        render_template("amorcage_passkey_admin.html")
+    )
+
+    reponse.headers["Cache-Control"] = "no-store"
+    return reponse
+
+@app.post("/admin/passkey/amorcage/options")
+@limiter_tentatives_amorcage
+def options_amorcage_passkey_admin():
+    """Prépare la première Passkey administrateur avec un jeton temporaire."""
+
+    session.pop("passkey_bootstrap_registration", None)
+
+    donnees = request.get_json(silent=True)
+
+    if not isinstance(donnees, dict):
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    jeton = donnees.get("token")
+
+    if not isinstance(jeton, str) or len(jeton) != 64:
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    try:
+        token_bytes = bytes.fromhex(jeton)
+    except ValueError:
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    token_hash = hashlib.sha256(token_bytes).digest()
+
+    user_id = 2
+
+    if not verifier_amorcage_passkey_admin(user_id, token_hash):
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    administrateur = get_admin_passkey_bootstrap(user_id)
+
+    if administrateur is None:
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    options = generer_options_enregistrement(
+        user_id=administrateur["user_id"],
+        nom=administrateur["nom"],
+    )
+
+    session_binding = secrets.token_bytes(32)
+
+    enregistrer_challenge_webauthn(
+        challenge_hash=hashlib.sha256(options.challenge).digest(),
+        session_binding_hash=hashlib.sha256(session_binding).digest(),
+        operation="registration",
+        user_id=user_id,
+        duree_secondes=60,
+    )
+
+    session["passkey_bootstrap_registration"] = {
+        "challenge": options.challenge.hex(),
+        "session_binding": session_binding.hex(),
+        "token_hash": token_hash.hex(),
+        "user_id": user_id,
+    }
+
+    return app.response_class(
+        response=options_to_json(options),
+        status=200,
+        mimetype="application/json",
+    )
+
+
+@app.post("/admin/passkey/amorcage/verifier")
+@limiter_tentatives_amorcage
+def verifier_amorcage_passkey_admin_web():
+    """Finalise la première Passkey administrateur."""
+
+    tentative = session.pop("passkey_bootstrap_registration", None)
+
+    if not isinstance(tentative, dict):
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    if tentative.get("user_id") != 2:
+        return jsonify({"erreur": "Autorisation d'amorçage requise."}), 403
+
+    credential = request.get_json(silent=True)
+
+    if not isinstance(credential, dict):
+        return jsonify({"erreur": "Réponse WebAuthn invalide."}), 400
+
+    try:
+        challenge = bytes.fromhex(tentative["challenge"])
+        session_binding = bytes.fromhex(tentative["session_binding"])
+        token_hash = bytes.fromhex(tentative["token_hash"])
+
+        if (
+            len(challenge) < 16
+            or len(session_binding) != 32
+            or len(token_hash) != 32
+        ):
+            return jsonify({"erreur": "Tentative Passkey invalide."}), 400
+
+        verification = verifier_enregistrement(
+            credential=credential,
+            challenge_attendu=challenge,
+        )
+
+        resultat = finaliser_amorcage_passkey_admin(
+            user_id=2,
+            token_hash=token_hash,
+            challenge_hash=hashlib.sha256(challenge).digest(),
+            session_binding_hash=hashlib.sha256(session_binding).digest(),
+            credential_id=verification.credential_id,
+            public_key=verification.credential_public_key,
+            sign_count=verification.sign_count,
+        )
+
+    except (ValueError, KeyError, TypeError, WebAuthnException):
+        return jsonify({"erreur": "Enregistrement Passkey invalide."}), 400
+
+    except UniqueViolation:
+        return jsonify({"erreur": "Passkey déjà enregistrée."}), 409
+
+    if resultat is False:
+        return jsonify({"erreur": "Autorisation expirée ou déjà utilisée."}), 403
+
+    return jsonify({
+        "message": "Première Passkey administrateur enregistrée.",
         "credential_id": resultat,
     }), 201
 
