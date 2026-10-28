@@ -124,6 +124,14 @@ jobs:
           -- réservées au rôle applicatif de test.
           GRANT netatlas_test_user TO netatlas_ci_user;
 
+          -- Permissions nécessaires aux tests RLS privilégiés.
+          -- Le rôle conserve les restrictions de la migration 014.
+          GRANT USAGE ON SCHEMA public TO netatlas_test_user;
+
+          GRANT SELECT, INSERT, UPDATE, DELETE
+          ON TABLE public.webauthn_challenges
+          TO netatlas_test_user;
+
           GRANT CONNECT ON DATABASE netatlas_test TO netatlas_ci_user;
           GRANT USAGE ON SCHEMA public TO netatlas_ci_user;
 
