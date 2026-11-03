@@ -971,3 +971,335 @@ def test_identifier_admin_recuperation_passkey_sql():
     assert "TEST OK : empreinte invalide refusee" in sortie
     assert "TEST OK : permissions SQL securisees" in sortie
     assert "TEST OK : jeton valide accepte par role applicatif" in sortie
+
+def test_preparation_securisee_refuse_jeton_inexistant():
+    """Un jeton inconnu ne doit créer ni challenge ni contexte."""
+
+    sortie = executer_sql_recuperation(
+        """
+        BEGIN;
+
+        DO $$
+        DECLARE
+            v_resultat record;
+            v_challenges_avant bigint;
+            v_contextes_avant bigint;
+        BEGIN
+            SELECT count(*)
+            INTO v_challenges_avant
+            FROM public.webauthn_challenges;
+
+            SELECT count(*)
+            INTO v_contextes_avant
+            FROM public.passkey_recovery_context;
+
+            SELECT *
+            INTO v_resultat
+            FROM public.preparer_recuperation_passkey_admin_securisee(
+                decode(repeat('a', 64), 'hex'),
+                decode(repeat('b', 64), 'hex'),
+                decode(repeat('c', 64), 'hex'),
+                decode(repeat('d', 64), 'hex')
+            );
+
+            IF FOUND THEN
+                RAISE EXCEPTION
+                    'Jeton inexistant accepte';
+            END IF;
+
+            IF (
+                SELECT count(*)
+                FROM public.webauthn_challenges
+            ) <> v_challenges_avant THEN
+                RAISE EXCEPTION
+                    'Challenge cree sans autorisation';
+            END IF;
+
+            IF (
+                SELECT count(*)
+                FROM public.passkey_recovery_context
+            ) <> v_contextes_avant THEN
+                RAISE EXCEPTION
+                    'Contexte cree sans autorisation';
+            END IF;
+
+            RAISE NOTICE
+                'TEST OK : preparation non autorisee refusee';
+        END
+        $$;
+
+        ROLLBACK;
+        """
+    )
+
+    assert (
+        "TEST OK : preparation non autorisee refusee"
+        in sortie
+    )
+
+def test_preparation_securisee_cree_challenge_et_contexte():
+    """Une autorisation valide crée un challenge et son contexte."""
+
+    sortie = executer_sql_recuperation(
+        """
+        BEGIN;
+
+        INSERT INTO public.passkey_recovery (
+            user_id,
+            token_hash,
+            expires_at,
+            requested_by
+        )
+        SELECT
+            admin_user_id,
+            decode(repeat('a1', 32), 'hex'),
+            clock_timestamp() + INTERVAL '300 seconds',
+            'pytest_preparation_securisee'
+        FROM public.passkey_recovery_config
+        WHERE id = 1;
+
+        DO $$
+        DECLARE
+            v_admin_id integer;
+            v_challenge_id bigint;
+        BEGIN
+            SELECT user_id
+            INTO v_admin_id
+            FROM public.preparer_recuperation_passkey_admin_securisee(
+                decode(repeat('a1', 32), 'hex'),
+                decode(repeat('b1', 32), 'hex'),
+                decode(repeat('c1', 32), 'hex'),
+                decode(repeat('d1', 32), 'hex')
+            );
+
+            IF v_admin_id IS NULL THEN
+                RAISE EXCEPTION
+                    'Autorisation valide refusee';
+            END IF;
+
+            SELECT wc.id
+            INTO v_challenge_id
+            FROM public.webauthn_challenges wc
+            JOIN public.passkey_recovery pr
+                ON pr.id = wc.recovery_id
+            WHERE pr.token_hash = decode(repeat('a1', 32), 'hex')
+              AND wc.operation = 'admin_recovery'
+              AND wc.user_id = v_admin_id
+              AND wc.challenge_hash = sha256(
+                  decode(repeat('b1', 32), 'hex')
+              );
+
+            IF v_challenge_id IS NULL THEN
+                RAISE EXCEPTION
+                    'Challenge admin_recovery absent';
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1
+                FROM public.passkey_recovery_context ctx
+                WHERE ctx.challenge_id = v_challenge_id
+                  AND ctx.context_hash = decode(repeat('d1', 32), 'hex')
+                  AND ctx.challenge = decode(repeat('b1', 32), 'hex')
+            ) THEN
+                RAISE EXCEPTION
+                    'Contexte temporaire absent';
+            END IF;
+
+            RAISE NOTICE
+                'TEST OK : challenge et contexte crees';
+        END
+        $$;
+
+        ROLLBACK;
+        """
+    )
+
+    assert "TEST OK : challenge et contexte crees" in sortie
+
+def test_preparation_securisee_refuse_deuxieme_tentative():
+    """Une autorisation SSH ne peut créer qu'un seul challenge."""
+
+    sortie = executer_sql_recuperation(
+        """
+        BEGIN;
+
+        INSERT INTO public.passkey_recovery (
+            user_id,
+            token_hash,
+            expires_at,
+            requested_by
+        )
+        SELECT
+            admin_user_id,
+            decode(repeat('a2', 32), 'hex'),
+            clock_timestamp() + INTERVAL '300 seconds',
+            'pytest_preparation_unique'
+        FROM public.passkey_recovery_config
+        WHERE id = 1;
+
+        DO $$
+        DECLARE
+            v_premier integer;
+            v_second integer;
+            v_nombre_challenges integer;
+            v_nombre_contextes integer;
+        BEGIN
+            SELECT user_id INTO v_premier
+            FROM public.preparer_recuperation_passkey_admin_securisee(
+                decode(repeat('a2', 32), 'hex'),
+                decode(repeat('b2', 32), 'hex'),
+                decode(repeat('c2', 32), 'hex'),
+                decode(repeat('d2', 32), 'hex')
+            );
+
+            IF v_premier IS NULL THEN
+                RAISE EXCEPTION 'Premiere tentative refusee';
+            END IF;
+
+            SELECT user_id INTO v_second
+            FROM public.preparer_recuperation_passkey_admin_securisee(
+                decode(repeat('a2', 32), 'hex'),
+                decode(repeat('b3', 32), 'hex'),
+                decode(repeat('c3', 32), 'hex'),
+                decode(repeat('d3', 32), 'hex')
+            );
+
+            IF v_second IS NOT NULL THEN
+                RAISE EXCEPTION 'Deuxieme tentative acceptee';
+            END IF;
+
+            SELECT count(*)
+            INTO v_nombre_challenges
+            FROM public.webauthn_challenges wc
+            JOIN public.passkey_recovery pr
+                ON pr.id = wc.recovery_id
+            WHERE pr.token_hash = decode(repeat('a2', 32), 'hex');
+
+            SELECT count(*)
+            INTO v_nombre_contextes
+            FROM public.passkey_recovery_context ctx
+            JOIN public.webauthn_challenges wc
+                ON wc.id = ctx.challenge_id
+            JOIN public.passkey_recovery pr
+                ON pr.id = wc.recovery_id
+            WHERE pr.token_hash = decode(repeat('a2', 32), 'hex');
+
+            IF v_nombre_challenges <> 1
+               OR v_nombre_contextes <> 1 THEN
+                RAISE EXCEPTION
+                    'Nombre incorrect de challenges ou contextes';
+            END IF;
+
+            RAISE NOTICE
+                'TEST OK : deuxieme tentative refusee';
+        END
+        $$;
+
+        ROLLBACK;
+        """
+    )
+
+    assert "TEST OK : deuxieme tentative refusee" in sortie
+
+def test_preparation_securisee_atomique_si_contexte_invalide():
+    """Un conflit de contexte annule la création du challenge."""
+
+    sortie = executer_sql_recuperation(
+        """
+        BEGIN;
+
+        INSERT INTO public.passkey_recovery (
+            user_id, token_hash, expires_at, requested_by
+        )
+        SELECT
+            admin_user_id,
+            decode(repeat('a4', 32), 'hex'),
+            clock_timestamp() + INTERVAL '300 seconds',
+            'pytest_preparation_atomique'
+        FROM public.passkey_recovery_config
+        WHERE id = 1;
+
+        DO $$
+        DECLARE
+            v_admin_id integer;
+            v_challenge_initial bigint;
+            v_erreur_detectee boolean := FALSE;
+        BEGIN
+            SELECT admin_user_id INTO STRICT v_admin_id
+            FROM public.passkey_recovery_config
+            WHERE id = 1;
+
+            INSERT INTO public.webauthn_challenges (
+                challenge_hash,
+                session_binding_hash,
+                user_id,
+                operation,
+                expires_at
+            )
+            VALUES (
+                decode(repeat('e4', 32), 'hex'),
+                decode(repeat('f4', 32), 'hex'),
+                v_admin_id,
+                'registration',
+                clock_timestamp() + INTERVAL '300 seconds'
+            )
+            RETURNING id INTO v_challenge_initial;
+
+            INSERT INTO public.passkey_recovery_context (
+                challenge_id, context_hash, challenge
+            )
+            VALUES (
+                v_challenge_initial,
+                decode(repeat('d4', 32), 'hex'),
+                decode(repeat('e4', 32), 'hex')
+            );
+
+            BEGIN
+                PERFORM *
+                FROM public.preparer_recuperation_passkey_admin_securisee(
+                    decode(repeat('a4', 32), 'hex'),
+                    decode(repeat('b4', 32), 'hex'),
+                    decode(repeat('c4', 32), 'hex'),
+                    decode(repeat('d4', 32), 'hex')
+                );
+            EXCEPTION WHEN unique_violation THEN
+                v_erreur_detectee := TRUE;
+            END;
+
+            IF NOT v_erreur_detectee THEN
+                RAISE EXCEPTION 'Conflit UNIQUE non detecte';
+            END IF;
+
+            IF EXISTS (
+                SELECT 1
+                FROM public.webauthn_challenges wc
+                JOIN public.passkey_recovery pr
+                    ON pr.id = wc.recovery_id
+                WHERE pr.token_hash = decode(repeat('a4', 32), 'hex')
+            ) THEN
+                RAISE EXCEPTION
+                    'Challenge conserve apres echec';
+            END IF;
+
+            IF (
+                SELECT count(*)
+                FROM public.passkey_recovery_context
+                WHERE context_hash = decode(repeat('d4', 32), 'hex')
+            ) <> 1 THEN
+                RAISE EXCEPTION
+                    'Contexte initial modifie';
+            END IF;
+
+            RAISE NOTICE
+                'TEST OK : atomicite de la preparation confirmee';
+        END
+        $$;
+
+        ROLLBACK;
+        """
+    )
+
+    assert (
+        "TEST OK : atomicite de la preparation confirmee"
+        in sortie
+    )

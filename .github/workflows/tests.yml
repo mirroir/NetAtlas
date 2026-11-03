@@ -103,7 +103,9 @@ jobs:
             database/011_prepare_admin_passkey_recovery.sql \
             database/012_finalize_admin_passkey_recovery.sql \
             database/013_identify_admin_passkey_recovery.sql \
-            database/014_isolate_admin_recovery_challenges.sql
+            database/014_isolate_admin_recovery_challenges.sql \
+            database/015_secure_passkey_recovery_context.sql \
+            database/016_prepare_secure_passkey_recovery.sql
           do
             echo "[INFO] Migration : $migration"
             psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f "$migration"
@@ -185,7 +187,30 @@ jobs:
               public.place_tags
           TO netatlas_ci_user;
 
-          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
+          -- Moindre privilege : seules les sequences applicatives requises.
+          -- Les sequences de recuperation Passkey restent exclues.
+          GRANT USAGE, SELECT ON SEQUENCE
+              public.avis_id_seq,
+              public.categories_id_seq,
+              public.documents_id_seq,
+              public.history_id_seq,
+              public.imports_id_seq,
+              public.opening_hours_id_seq,
+              public.passkey_bootstrap_id_seq,
+              public.pays_id_seq,
+              public.photos_id_seq,
+              public.places_id_seq,
+              public.produits_id_seq,
+              public.regions_id_seq,
+              public.roles_id_seq,
+              public.services_id_seq,
+              public.sources_id_seq,
+              public.tag_proposals_id_seq,
+              public.tags_id_seq,
+              public.territoires_id_seq,
+              public.users_id_seq,
+              public.villes_id_seq,
+              public.webauthn_challenges_id_seq
           TO netatlas_ci_user;
 
           -- Aucun accès direct aux tables sensibles de récupération.
@@ -242,6 +267,78 @@ jobs:
                   'SELECT,INSERT,UPDATE,DELETE'
               ) THEN
                   RAISE EXCEPTION 'Audit accessible au compte CI';
+              END IF;
+
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.passkey_recovery_context',
+                  'SELECT'
+              ) THEN
+                  RAISE EXCEPTION
+                      'Lecture du contexte autorisee au compte CI';
+              END IF;
+
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.passkey_recovery_context',
+                  'INSERT'
+              ) THEN
+                  RAISE EXCEPTION
+                      'Insertion directe du contexte autorisee au compte CI';
+              END IF;
+
+              IF NOT has_function_privilege(
+                  'netatlas_ci_user',
+                  'public.preparer_recuperation_passkey_admin_securisee(bytea,bytea,bytea,bytea)',
+                  'EXECUTE'
+              ) THEN
+                  RAISE EXCEPTION
+                      'Preparation securisee inaccessible au compte CI';
+              END IF;
+
+              -- Les trois sequences sensibles doivent exister et
+              -- rester inaccessibles au role applicatif CI.
+              IF (
+                  SELECT COUNT(*)
+                  FROM pg_class AS seq
+                  JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
+                  WHERE ns.nspname = 'public'
+                    AND seq.relkind = 'S'
+                    AND seq.relname IN (
+                        'passkey_recovery_id_seq',
+                        'passkey_recovery_audit_id_seq',
+                        'passkey_recovery_context_id_seq'
+                    )
+              ) <> 3 THEN
+                  RAISE EXCEPTION 'Sequences Passkey attendues absentes';
+              END IF;
+
+              IF EXISTS (
+                  SELECT 1
+                  FROM pg_class AS seq
+                  JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
+                  WHERE ns.nspname = 'public'
+                    AND seq.relkind = 'S'
+                    AND seq.relname IN (
+                        'passkey_recovery_id_seq',
+                        'passkey_recovery_audit_id_seq',
+                        'passkey_recovery_context_id_seq'
+                    )
+                    AND (
+                        has_sequence_privilege('netatlas_ci_user', seq.oid, 'USAGE')
+                        OR has_sequence_privilege('netatlas_ci_user', seq.oid, 'SELECT')
+                        OR has_sequence_privilege('netatlas_ci_user', seq.oid, 'UPDATE')
+                    )
+              ) THEN
+                  RAISE EXCEPTION 'Privilege interdit sur une sequence Passkey';
+              END IF;
+
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.passkey_recovery_context',
+                  'UPDATE,DELETE'
+              ) THEN
+                  RAISE EXCEPTION 'Modification du contexte autorisee au compte CI';
               END IF;
 
               RAISE NOTICE 'Restrictions PostgreSQL CI validées';

@@ -2586,6 +2586,66 @@ def preparer_recuperation_passkey_admin(
     finally:
         connexion.close()
 
+def preparer_recuperation_passkey_admin_securisee(
+    token_hash,
+    challenge,
+    session_binding_hash,
+    context_hash,
+):
+    """Prépare une récupération Passkey avec contexte protégé en base."""
+
+    for nom, valeur in (
+        ("jeton", token_hash),
+        ("liaison de session", session_binding_hash),
+        ("contexte", context_hash),
+    ):
+        if not isinstance(valeur, bytes) or len(valeur) != 32:
+            raise ValueError(f"Empreinte {nom} invalide.")
+
+    if (
+        not isinstance(challenge, bytes)
+        or not 16 <= len(challenge) <= 1024
+    ):
+        raise ValueError("Challenge WebAuthn invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT user_id, nom
+                FROM public.preparer_recuperation_passkey_admin_securisee(
+                    %s, %s, %s, %s
+                )
+                """,
+                (
+                    token_hash,
+                    challenge,
+                    session_binding_hash,
+                    context_hash,
+                ),
+            )
+
+            resultat = curseur.fetchone()
+
+        connexion.commit()
+
+        if resultat is None:
+            return None
+
+        return {
+            "user_id": resultat[0],
+            "nom": resultat[1],
+        }
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
 
 def verifier_limite_tentatives_passkey(
     key_hash,

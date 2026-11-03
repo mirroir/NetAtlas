@@ -41,6 +41,8 @@ from database import (
     get_territoires_par_categorie_et_pays,
     get_user_reaction,
     get_villes_par_categorie_pays_territoire,
+    identifier_admin_recuperation_passkey,
+    preparer_recuperation_passkey_admin_securisee,
     rechercher_global,
     verifier_amorcage_passkey_admin,
     verifier_limites_combinees_passkey,
@@ -668,19 +670,75 @@ def verifier_amorcage_passkey_admin_web():
 # PASSKEY - RECUPERATION ADMINISTRATEUR
 # ============================================================
 
-
 @app.post("/admin/passkey/recuperation/options")
 @limiter_tentatives_passkey
 def options_recuperation_passkey_admin():
-    """Point d'entrée sécurisé de préparation de récupération."""
+    """Prépare une récupération Passkey administrateur autorisée."""
 
     session.pop("passkey_recovery_registration", None)
 
-    # La préparation sera activée après validation de ses tests.
-    return jsonify({
-        "erreur": "Autorisation de récupération requise."
-    }), 403
+    erreur = {"erreur": "Autorisation de récupération requise."}
 
+    donnees = request.get_json(silent=True)
+
+    if not isinstance(donnees, dict):
+        return jsonify(erreur), 403
+
+    jeton = donnees.get("token")
+
+    if not isinstance(jeton, str) or len(jeton) != 64:
+        return jsonify(erreur), 403
+
+    try:
+        token_bytes = bytes.fromhex(jeton)
+    except ValueError:
+        return jsonify(erreur), 403
+
+    token_hash = hashlib.sha256(token_bytes).digest()
+
+    administrateur = identifier_admin_recuperation_passkey(
+        token_hash
+    )
+
+    if administrateur is None:
+        return jsonify(erreur), 403
+
+    options = generer_options_enregistrement(
+        user_id=administrateur["user_id"],
+        nom=administrateur["nom"],
+    )
+
+    session_binding = secrets.token_bytes(32)
+    context_reference = secrets.token_bytes(32)
+
+    resultat = preparer_recuperation_passkey_admin_securisee(
+        token_hash=token_hash,
+        challenge=options.challenge,
+        session_binding_hash=hashlib.sha256(
+            session_binding
+        ).digest(),
+        context_hash=hashlib.sha256(
+            context_reference
+        ).digest(),
+    )
+
+    if resultat is None:
+        return jsonify(erreur), 403
+
+    if resultat["user_id"] != administrateur["user_id"]:
+        return jsonify(erreur), 403
+
+    session["passkey_recovery_registration"] = {
+        "context_reference": context_reference.hex(),
+        "session_binding": session_binding.hex(),
+    }
+
+
+    return app.response_class(
+        response=options_to_json(options),
+        status=200,
+        mimetype="application/json",
+    )
 
 @app.post("/admin/passkey/recuperation/verifier")
 @limiter_tentatives_passkey
