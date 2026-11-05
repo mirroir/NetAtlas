@@ -107,7 +107,8 @@ jobs:
             database/015_secure_passkey_recovery_context.sql \
             database/016_prepare_secure_passkey_recovery.sql \
             database/017_revoke_legacy_passkey_recovery.sql \
-            database/018_revoke_passkey_rate_limit_delete.sql
+            database/018_revoke_passkey_rate_limit_delete.sql \
+            database/019_create_iam_sessions.sql
           do
             echo "[INFO] Migration : $migration"
             psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test -f "$migration"
@@ -173,7 +174,8 @@ jobs:
               public.webauthn_credentials,
               public.webauthn_challenges,
               public.passkey_bootstrap,
-              public.passkey_rate_limits
+              public.passkey_rate_limits,
+              public.iam_sessions
           TO netatlas_ci_user;
 
           -- Suppressions autorisées par les tests applicatifs.
@@ -211,7 +213,8 @@ jobs:
               public.territoires_id_seq,
               public.users_id_seq,
               public.villes_id_seq,
-              public.webauthn_challenges_id_seq
+              public.webauthn_challenges_id_seq,
+              public.iam_sessions_id_seq
           TO netatlas_ci_user;
 
           -- Aucun accès direct aux tables sensibles de récupération.
@@ -238,6 +241,15 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test <<'SQL'
           DO $$
           BEGIN
+              -- IAM : interdire la suppression directe des sessions.
+              IF has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.iam_sessions',
+                  'DELETE'
+              ) THEN
+                  RAISE EXCEPTION
+                      'Suppression des sessions IAM autorisee au compte CI';
+              END IF;
               -- Migration 018 : interdire la suppression des compteurs
               -- Passkey, y compris par heritage de roles.
               IF has_table_privilege(
