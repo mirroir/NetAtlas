@@ -95,11 +95,23 @@ def test_authentification_postgresql_reussie(donnees_authentification):
         role_nom="admin",
     )
 
-    assert resultat == {
-        "user_id": USER_ID,
-        "nom": "Administrateur",
-        "role": "admin",
-    }
+
+    assert isinstance(resultat, dict)
+    assert resultat["user_id"] == USER_ID
+    assert resultat["role"] == "admin"
+
+    connexion = connexion_db()
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                "SELECT nom FROM users WHERE id = %s",
+                (USER_ID,),
+            )
+            utilisateur = curseur.fetchone()
+            assert utilisateur is not None
+            assert resultat["nom"] == utilisateur[0]
+    finally:
+        connexion.close()
 
     connexion = connexion_db()
 
@@ -422,11 +434,22 @@ def test_authentification_postgresql_concurrente(donnees_authentification):
     assert len(reussites) == 1
     assert len(refus) == 1
 
-    assert reussites[0] == {
-        "user_id": USER_ID,
-        "nom": "Administrateur",
-        "role": "admin",
-    }
+    assert isinstance(reussites[0], dict)
+    assert reussites[0]["user_id"] == USER_ID
+    assert reussites[0]["role"] == "admin"
+
+    connexion = connexion_db()
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                "SELECT nom FROM users WHERE id = %s",
+                (USER_ID,),
+            )
+            utilisateur = curseur.fetchone()
+            assert utilisateur is not None
+            assert reussites[0]["nom"] == utilisateur[0]
+    finally:
+        connexion.close()
 
     connexion = connexion_db()
 

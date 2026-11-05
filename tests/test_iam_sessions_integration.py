@@ -1,7 +1,7 @@
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import psycopg
 import pytest
@@ -49,7 +49,7 @@ def creer_session(
 
     if expires_at is None:
         expires_at = (
-            datetime.now(timezone.utc)
+            datetime.now(UTC)
             + timedelta(hours=8)
         )
 
@@ -137,7 +137,7 @@ def test_rejet_contraintes(
 ):
     """Vérifie le rejet des données IAM incorrectes."""
     expires_at = (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
         + timedelta(hours=expiration)
     )
 
