@@ -1,3 +1,4 @@
+
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -42,40 +43,11 @@ def test_admin_acces_autorise():
     assert b"Espace Administrateur" in reponse.data
 
 
-def test_admin_connexion_pin_incorrect(csrf_data):
-    with patch(
-        "web.app.authentifier_utilisateur",
-        return_value=None,
-    ) as authentifier, app.test_client() as client:
+def test_admin_connexion_pin_refuse(csrf_data):
+    """Un ancien formulaire PIN administrateur doit être refusé."""
+    with app.test_client() as client:
         donnees_csrf = csrf_data(client)
-        reponse = client.post(
-            "/connexion/admin",
-            data={
-                "nom": "AdminNetAtlas",
-                "pin": "0000",
-                "csrf_token": donnees_csrf["csrf_token"],
-            },
-        )
 
-    assert reponse.status_code == 200
-    assert b"PIN incorrect" in reponse.data
-    authentifier.assert_called_once_with(
-        "AdminNetAtlas", "0000", "admin"
-    )
-
-
-def test_admin_connexion_reussie(csrf_data):
-    administrateur = {
-        "user_id": 2,
-        "nom": "AdminNetAtlas",
-        "role": "admin",
-    }
-
-    with patch(
-        "web.app.authentifier_utilisateur",
-        return_value=administrateur,
-    ), app.test_client() as client:
-        donnees_csrf = csrf_data(client)
         reponse = client.post(
             "/connexion/admin",
             data={
@@ -83,14 +55,15 @@ def test_admin_connexion_reussie(csrf_data):
                 "pin": "2580",
                 "csrf_token": donnees_csrf["csrf_token"],
             },
+            follow_redirects=False,
         )
 
         with client.session_transaction() as session:
-            assert session["user_id"] == 2
-            assert session["role"] == "admin"
+            assert session.get("user_id") is None
+            assert session.get("role") is None
 
-    assert reponse.status_code == 302
-    assert "/admin" in reponse.location
+    assert reponse.status_code == 405
+
 
 def test_administrateur_refuse_espace_utilisateur():
     with app.test_client() as client:
@@ -104,6 +77,7 @@ def test_administrateur_refuse_espace_utilisateur():
     assert reponse.status_code == 302
     assert "/connexion/utilisateur" in reponse.location
 
+
 def test_utilisateur_connecte_acces_espace():
     with app.test_client() as client:
         with client.session_transaction() as session:
@@ -114,6 +88,7 @@ def test_utilisateur_connecte_acces_espace():
         reponse = client.get("/utilisateur")
 
     assert reponse.status_code == 200
+
 
 def test_admin_refuse_recherche_utilisateur():
     with app.test_client() as client:
@@ -139,13 +114,16 @@ def test_utilisateur_autorise_recherche_globale():
 
     assert reponse.status_code == 200
 
+
 def test_admin_refuse_ajout_commentaire(csrf_data):
-    with patch(
-        "web.app.get_place_details",
-        return_value={"id": 1, "name": "LieuTest"},
-    ), patch(
-        "web.app.ajouter_avis",
-    ) as ajouter_avis, app.test_client() as client:
+    with (
+        patch(
+            "web.app.get_place_details",
+            return_value={"id": 1, "name": "LieuTest"},
+        ),
+        patch("web.app.ajouter_avis") as ajouter_avis,
+        app.test_client() as client,
+    ):
         with client.session_transaction() as session:
             session["user_id"] = 2
             session["nom"] = "AdminNetAtlas"
@@ -166,6 +144,7 @@ def test_admin_refuse_ajout_commentaire(csrf_data):
     assert "/connexion/utilisateur" in reponse.location
     ajouter_avis.assert_not_called()
 
+
 def test_admin_refuse_reaction_lieu(csrf_data):
     with (
         patch("web.app.enregistrer_reaction") as enregistrer,
@@ -175,7 +154,9 @@ def test_admin_refuse_reaction_lieu(csrf_data):
             session["user_id"] = 2
             session["nom"] = "AdminNetAtlas"
             session["role"] = "admin"
+
         donnees_csrf = csrf_data(client)
+
         reponse = client.post(
             "/lieu/1/reaction",
             data={
@@ -189,12 +170,14 @@ def test_admin_refuse_reaction_lieu(csrf_data):
     assert "/connexion/utilisateur" in reponse.location
     enregistrer.assert_not_called()
 
+
 def test_generation_jeton_csrf(csrf_data):
     with app.test_client() as client:
         donnees = csrf_data(client)
 
     assert "csrf_token" in donnees
     assert len(donnees["csrf_token"]) > 20
+
 
 def test_admin_connexion_sans_jeton_csrf():
     app.config["TESTING"] = True
@@ -205,7 +188,8 @@ def test_admin_connexion_sans_jeton_csrf():
             data={"pin": "0000"},
         )
 
-    assert reponse.status_code == 400
+    assert reponse.status_code == 405
+
 
 def test_admin_connexion_jeton_csrf_invalide():
     app.config["TESTING"] = True
@@ -219,6 +203,5 @@ def test_admin_connexion_jeton_csrf_invalide():
             },
         )
 
-    assert reponse.status_code == 400
-
+    assert reponse.status_code == 405
 

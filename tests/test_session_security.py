@@ -85,65 +85,25 @@ def test_production_avec_https_autorisee():
 
     assert resultat.returncode == 0, resultat.stderr
 
-def test_nettoyage_session_apres_connexion(monkeypatch):
-    import re
-    from html import unescape
-
-    def fausse_authentification(nom, pin, role):
-        return {
-            "user_id": 42,
-            "nom": "Utilisateur Test",
-            "role": "utilisateur",
-        }
-
-    monkeypatch.setattr(
-        "web.app.authentifier_utilisateur",
-        fausse_authentification,
-    )
+def test_connexion_utilisateur_pin_refuse(csrf_data):
+    """Un ancien formulaire PIN ne doit jamais ouvrir de session."""
 
     with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
 
-        # Préparer une session contenant d'anciennes données.
-        with client.session_transaction() as session:
-            session["ancienne_donnee"] = "a_supprimer"
-            session["role"] = "ancien_role"
-
-        # Récupérer le formulaire et son jeton CSRF.
-        page = client.get("/connexion/utilisateur")
-
-        assert page.status_code == 200
-
-        contenu = page.get_data(as_text=True)
-
-        correspondance = re.search(
-            r'name="csrf_token"\s+value="([^"]+)"',
-            contenu,
-        )
-
-        assert correspondance is not None
-
-        csrf_token = unescape(correspondance.group(1))
-
-        # Simuler une connexion avec un jeton CSRF valide.
         reponse = client.post(
             "/connexion/utilisateur",
             data={
-                "nom": "Utilisateur Test",
+                "nom": "UtilisateurTest",
                 "pin": "1234",
-                "csrf_token": csrf_token,
+                "csrf_token": donnees_csrf["csrf_token"],
             },
             follow_redirects=False,
         )
 
-        # Vérifier la redirection après authentification.
-        assert reponse.status_code == 302
-
-        # Vérifier que les anciennes données ont disparu.
         with client.session_transaction() as session:
-            assert "ancienne_donnee" not in session
+            assert session.get("user_id") is None
+            assert session.get("role") is None
 
-            assert session["user_id"] == 42
-            assert session["nom"] == "Utilisateur Test"
-            assert session["role"] == "utilisateur"
-
+    assert reponse.status_code == 405
 

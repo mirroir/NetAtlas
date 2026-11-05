@@ -235,3 +235,27 @@ def test_mettre_a_jour_compteur_webauthn_condition_securisee():
     connexion.close.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    "compteur_invalide",
+    [
+        None,
+        "5",
+        True,
+        5.5,
+        -1,
+        9223372036854775808,
+    ],
+)
+def test_compteur_webauthn_valeur_invalide(compteur_invalide):
+    """Refuse les compteurs invalides avant toute connexion PostgreSQL."""
+    with (
+        patch("database.connexion_db") as connexion_mock,
+        pytest.raises(ValueError, match="Compteur WebAuthn invalide"),
+    ):
+        mettre_a_jour_compteur_webauthn(
+            credential_id=b"credential-test",
+            sign_count=compteur_invalide,
+        )
+
+    connexion_mock.assert_not_called()
+

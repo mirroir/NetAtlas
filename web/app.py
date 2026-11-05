@@ -8,6 +8,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 from flask_wtf.csrf import CSRFProtect
 from psycopg.errors import UniqueViolation
 from webauthn import options_to_json
+from webauthn.helpers import base64url_to_bytes
 from webauthn.helpers.exceptions import WebAuthnException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
@@ -16,22 +17,25 @@ import hmac
 from functools import wraps
 
 from webauthn_service import (
+    generer_options_authentification,
     generer_options_enregistrement,
+    verifier_authentification,
     verifier_enregistrement,
 )
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from database import (
     ajouter_avis,
-    authentifier_utilisateur,
     creer_utilisateur,
     enregistrer_challenge_webauthn,
     enregistrer_reaction,
     finaliser_amorcage_passkey_admin,
+    finaliser_authentification_webauthn,
     finaliser_enregistrement_webauthn,
     get_admin_passkey_bootstrap,
     get_avis_by_place,
     get_contexte_recherche,
+    get_credential_webauthn,
     get_lieux_par_categorie_pays_territoire_ville,
     get_pays_par_categorie,
     get_place_details,
@@ -188,92 +192,38 @@ def creer_profil():
 
 
 # ============================================================
-# CONNEXION UTILISATEUR
+# CONNEXION UTILISATEUR - PASSKEY UNIQUEMENT
 # ============================================================
 
 
-@app.route("/connexion/utilisateur", methods=["GET", "POST"])
+@app.get("/connexion/utilisateur")
 def connexion_utilisateur():
-    # Si l'utilisateur est déjà connecté,
-    # inutile de lui redemander son nom et son PIN.
+    """Affiche la connexion utilisateur sans authentification PIN."""
+
     if (
-        request.method == "GET"
-        and "user_id" in session
+        session.get("user_id") is not None
         and session.get("role") == "utilisateur"
     ):
         return redirect(url_for("espace_utilisateur"))
 
-    erreur = None
-
-    if request.method == "POST":
-        nom = request.form["nom"]
-        pin = request.form["pin"]
-
-        utilisateur = authentifier_utilisateur(
-            nom,
-            pin,
-            "utilisateur",
-        )
-
-        if utilisateur is None:
-            erreur = "Nom de profil ou PIN incorrect."
-
-        else:
-            session.clear()
-
-            session["user_id"] = utilisateur["user_id"]
-            session["nom"] = utilisateur["nom"]
-            session["role"] = utilisateur["role"]
-
-            return redirect(url_for("espace_utilisateur"))
-
-    return render_template(
-        "connexion_utilisateur.html",
-        erreur=erreur,
-    )
-
+    return render_template("connexion_utilisateur.html")
 
 # ============================================================
-# CONNEXION ADMINISTRATEUR
+# CONNEXION ADMINISTRATEUR - PASSKEY UNIQUEMENT
 # ============================================================
 
 
-@app.route("/connexion/admin", methods=["GET", "POST"])
+@app.get("/connexion/admin")
 def connexion_admin():
+    """Affiche la connexion administrateur sans authentification PIN."""
+
     if (
-        request.method == "GET"
-        and session.get("user_id")
+        session.get("user_id") is not None
         and session.get("role") == "admin"
     ):
-        return redirect(url_for("espace_admin"))
+        return redirect(url_for("tableau_de_bord_admin"))
 
-    erreur = None
-
-    if request.method == "POST":
-        nom = request.form["nom"]
-        pin = request.form["pin"]
-
-        administrateur = authentifier_utilisateur(
-            nom,
-            pin,
-            "admin",
-        )
-
-        if administrateur is None:
-            erreur = "Nom de compte ou PIN incorrect."
-
-        else:
-            session.clear()
-            session["user_id"] = administrateur["user_id"]
-            session["nom"] = administrateur["nom"]
-            session["role"] = administrateur["role"]
-
-            return redirect(url_for("espace_admin"))
-
-    return render_template(
-        "connexion_admin.html",
-        erreur=erreur,
-    )
+    return render_template("connexion_admin.html")
 
 
 # ============================================================
@@ -520,6 +470,7 @@ def securiser_reponses_passkey(reponse):
     chemins_proteges = (
         "/admin/passkey/amorcage",
         "/admin/passkey/recuperation",
+        "/passkey/authentification",
     )
 
     if any(
@@ -531,6 +482,131 @@ def securiser_reponses_passkey(reponse):
         reponse.headers["Pragma"] = "no-cache"
 
     return reponse
+
+
+# ============================================================
+# PASSKEY - OPTIONS D'AUTHENTIFICATION
+# ============================================================
+
+
+@app.post("/passkey/authentification/options")
+@limiter_tentatives_passkey
+def options_authentification_passkey():
+    """Prépare une authentification Passkey liée à la session."""
+
+    session.pop("passkey_authentication", None)
+
+    options = generer_options_authentification()
+    session_binding = secrets.token_bytes(32)
+
+    enregistrer_challenge_webauthn(
+        challenge_hash=hashlib.sha256(options.challenge).digest(),
+        session_binding_hash=hashlib.sha256(session_binding).digest(),
+        operation="authentication",
+        duree_secondes=60,
+    )
+
+    session["passkey_authentication"] = {
+        "challenge": options.challenge.hex(),
+        "session_binding": session_binding.hex(),
+    }
+
+    return app.response_class(
+        response=options_to_json(options),
+        status=200,
+        mimetype="application/json",
+    )
+
+
+# ============================================================
+# PASSKEY - VERIFICATION D'AUTHENTIFICATION
+# ============================================================
+
+
+@app.post("/passkey/authentification/verifier")
+@limiter_tentatives_passkey
+def verifier_authentification_passkey_web():
+    """Vérifie une Passkey et ouvre une session après validation SQL."""
+
+    tentative = session.pop("passkey_authentication", None)
+
+    if not isinstance(tentative, dict):
+        return jsonify({"erreur": "Authentification Passkey invalide."}), 400
+
+    donnees = request.get_json(silent=True)
+
+    if not isinstance(donnees, dict):
+        return jsonify({"erreur": "Réponse Passkey invalide."}), 400
+
+    role = donnees.get("role")
+    credential = donnees.get("credential")
+
+    if role not in ("admin", "utilisateur"):
+        return jsonify({"erreur": "Rôle de connexion invalide."}), 400
+
+    if not isinstance(credential, dict):
+        return jsonify({"erreur": "Réponse Passkey invalide."}), 400
+
+    try:
+        challenge = bytes.fromhex(tentative["challenge"])
+        session_binding = bytes.fromhex(tentative["session_binding"])
+
+        if len(challenge) < 16 or len(session_binding) != 32:
+            raise ValueError("Tentative Passkey invalide.")
+
+        credential_id = base64url_to_bytes(credential["id"])
+
+        if not credential_id:
+            raise ValueError("Identifiant Passkey invalide.")
+
+        passkey = get_credential_webauthn(credential_id)
+
+        if passkey is None:
+            return jsonify({"erreur": "Authentification Passkey refusée."}), 403
+
+        verification = verifier_authentification(
+            credential=credential,
+            challenge_attendu=challenge,
+            cle_publique=passkey["public_key"],
+            compteur_actuel=passkey["sign_count"],
+        )
+
+        # Identifiant vérifié identique à celui recherché en base.
+        if verification.credential_id != credential_id:
+            raise ValueError("Identifiant Passkey incohérent.")
+
+        utilisateur = finaliser_authentification_webauthn(
+            challenge_hash=hashlib.sha256(challenge).digest(),
+            session_binding_hash=hashlib.sha256(session_binding).digest(),
+            credential_id=credential_id,
+            public_key=passkey["public_key"],
+            compteur_precedent=passkey["sign_count"],
+            nouveau_compteur=verification.new_sign_count,
+            role_nom=role,
+        )
+
+    except (ValueError, KeyError, TypeError, WebAuthnException):
+        return jsonify({"erreur": "Authentification Passkey invalide."}), 400
+
+    if utilisateur is False:
+        return jsonify({"erreur": "Authentification Passkey refusée."}), 403
+
+    session.clear()
+    session["user_id"] = utilisateur["user_id"]
+    session["nom"] = utilisateur["nom"]
+    session["role"] = utilisateur["role"]
+
+    destination = (
+        "espace_admin"
+        if utilisateur["role"] == "admin"
+        else "espace_utilisateur"
+    )
+
+    return jsonify({
+        "message": "Authentification Passkey réussie.",
+        "redirect": url_for(destination),
+    }), 200
+
 
 @app.get("/admin/passkey/amorcage")
 def page_amorcage_passkey_admin():

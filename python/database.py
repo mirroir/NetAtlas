@@ -1907,11 +1907,21 @@ def get_credential_webauthn(credential_id):
         connexion.close()
 
 
+def valider_compteur_webauthn(compteur):
+    """Valide un compteur WebAuthn compatible PostgreSQL BIGINT."""
+    if (
+        not isinstance(compteur, int)
+        or isinstance(compteur, bool)
+        or not 0 <= compteur <= 9223372036854775807
+    ):
+        raise ValueError("Compteur WebAuthn invalide.")
+
 
 def mettre_a_jour_compteur_webauthn(
     credential_id,
     sign_count,
 ):
+    valider_compteur_webauthn(sign_count)
     connexion = connexion_db()
 
     try:
@@ -2156,6 +2166,134 @@ def finaliser_enregistrement_webauthn(
 
         connexion.commit()
         return credential_db_id
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
+
+def finaliser_authentification_webauthn(
+    challenge_hash,
+    session_binding_hash,
+    credential_id,
+    public_key,
+    compteur_precedent,
+    nouveau_compteur,
+    role_nom,
+):
+    """Finalise une authentification WebAuthn dans une transaction unique."""
+
+    for empreinte in (challenge_hash, session_binding_hash):
+        if not isinstance(empreinte, bytes) or len(empreinte) != 32:
+            raise ValueError("Empreinte WebAuthn invalide.")
+
+    if not isinstance(credential_id, bytes) or not credential_id:
+        raise ValueError("Identifiant Passkey invalide.")
+
+    if not isinstance(public_key, bytes) or not public_key:
+        raise ValueError("Clé publique invalide.")
+
+    for compteur in (compteur_precedent, nouveau_compteur):
+        valider_compteur_webauthn(compteur)
+
+
+    if role_nom not in ("admin", "utilisateur"):
+        raise ValueError("Rôle WebAuthn invalide.")
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id, user_id, public_key, sign_count
+                FROM webauthn_credentials
+                WHERE credential_id = %s
+                FOR UPDATE
+                """,
+                (credential_id,),
+            )
+
+            passkey = curseur.fetchone()
+
+            if passkey is None:
+                connexion.rollback()
+                return False
+
+            passkey_id, user_id, cle_enregistree, compteur_enregistre = passkey
+
+            if (
+                cle_enregistree != public_key
+                or compteur_enregistre != compteur_precedent
+                or not (
+                    (compteur_precedent == 0 and nouveau_compteur == 0)
+                    or nouveau_compteur > compteur_precedent
+                )
+            ):
+                connexion.rollback()
+                return False
+
+            curseur.execute(
+                """
+                SELECT u.id, u.nom
+                FROM users u
+                JOIN role_user ru ON ru.user_id = u.id
+                JOIN roles r ON r.id = ru.role_id
+                WHERE u.id = %s AND r.nom = %s
+                FOR SHARE OF u, ru, r
+                """,
+                (user_id, role_nom),
+            )
+
+            utilisateur = curseur.fetchone()
+
+            if utilisateur is None:
+                connexion.rollback()
+                return False
+
+            curseur.execute(
+                """
+                UPDATE webauthn_challenges
+                SET consumed_at = CURRENT_TIMESTAMP
+                WHERE challenge_hash = %s
+                  AND session_binding_hash = %s
+                  AND operation = 'authentication'
+                  AND user_id IS NULL
+                  AND expires_at > CURRENT_TIMESTAMP
+                  AND consumed_at IS NULL
+                RETURNING id
+                """,
+                (challenge_hash, session_binding_hash),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+            curseur.execute(
+                """
+                UPDATE webauthn_credentials
+                SET sign_count = %s
+                WHERE id = %s
+                  AND sign_count = %s
+                RETURNING id
+                """,
+                (nouveau_compteur, passkey_id, compteur_precedent),
+            )
+
+            if curseur.fetchone() is None:
+                connexion.rollback()
+                return False
+
+        connexion.commit()
+
+        return {
+            "user_id": utilisateur[0],
+            "nom": utilisateur[1],
+            "role": role_nom,
+        }
 
     except Exception:
         connexion.rollback()

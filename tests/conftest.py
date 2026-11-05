@@ -32,7 +32,7 @@ def csrf_data():
         assert reponse.status_code == 200
 
         correspondance = re.search(
-            rb'name="csrf_token"\s+value="([^"]+)"',
+            rb'(?:name="csrf_token"|id="passkey-csrf-token")\s+value="([^"]+)"',
             reponse.data,
         )
 

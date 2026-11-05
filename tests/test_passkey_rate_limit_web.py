@@ -11,6 +11,8 @@ ROUTES_PASSKEY_PROTEGEES = [
     "/admin/passkey/amorcage/verifier",
     "/admin/passkey/recuperation/options",
     "/admin/passkey/recuperation/verifier",
+    "/passkey/authentification/options",
+    "/passkey/authentification/verifier",
 ]
 
 
@@ -87,4 +89,9 @@ def test_tentative_autorisee_continue_traitement(client, route):
     ):
         reponse = client.post(route, json={})
 
-    assert reponse.status_code == 403
+    statuts_attendus = {
+        "/passkey/authentification/options": 200,
+        "/passkey/authentification/verifier": 400,
+    }
+
+    assert reponse.status_code == statuts_attendus.get(route, 403)
