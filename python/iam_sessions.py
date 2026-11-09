@@ -82,3 +82,62 @@ def creer_session_iam(
     finally:
         connexion.close()
 
+
+def valider_session_iam(jeton: str) -> dict | None:
+    """Valide une session IAM et actualise son activité atomiquement."""
+
+    if not isinstance(jeton, str) or len(jeton) != 64:
+        return None
+
+    try:
+        jeton_brut = bytes.fromhex(jeton)
+    except ValueError:
+        return None
+
+    empreinte = hashlib.sha256(jeton_brut).digest()
+
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+
+            curseur.execute(
+                """
+                UPDATE public.iam_sessions AS s
+                SET last_activity_at = GREATEST(
+                    s.last_activity_at,
+                    statement_timestamp()
+                )
+                FROM public.users AS u
+                WHERE s.token_hash = %s
+                  AND u.id = s.user_id
+                  AND s.revoked_at IS NULL
+                  AND s.expires_at > statement_timestamp()
+                  AND s.last_activity_at
+                      + (s.idle_timeout_seconds * INTERVAL '1 second')
+                      > statement_timestamp()
+                RETURNING
+                    s.user_id,
+                    u.nom
+                """,
+                (empreinte,),
+            )
+
+            resultat = curseur.fetchone()
+
+        connexion.commit()
+
+        if resultat is None:
+            return None
+
+        return {
+            "user_id": resultat[0],
+            "nom": resultat[1],
+        }
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
