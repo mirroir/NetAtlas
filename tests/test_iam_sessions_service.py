@@ -49,11 +49,8 @@ def test_rejet_parametres_invalides(
         )
 
 
-
-def test_creation_session_postgresql(monkeypatch):
-    """Vérifie la création IAM dans la base de test uniquement."""
-    import hashlib
-
+def test_creation_session_postgresql():
+    """Vérifie la connexion IAM à la base de test sans écriture persistante."""
     import database
 
     connexion = database.connexion_db()
@@ -74,56 +71,6 @@ def test_creation_session_postgresql(monkeypatch):
     finally:
         connexion.rollback()
         connexion.close()
-
-    connexion = database.connexion_db()
-    connexion.rollback()
-    connexion.close()
-
-    # L'appel applicatif ouvre sa propre transaction.
-    jeton = iam_sessions.creer_session_iam(
-        3,
-        duree_secondes=3600,
-        inactivite_secondes=900,
-    )
-
-    assert isinstance(jeton, str)
-    assert len(jeton) == 64
-
-    empreinte = hashlib.sha256(
-        bytes.fromhex(jeton)
-    ).digest()
-
-    connexion = database.connexion_db()
-
-    try:
-        assert connexion.info.dbname == "netatlas_test"
-
-        with connexion.cursor() as curseur:
-            curseur.execute(
-                """
-                SELECT
-                    user_id,
-                    token_hash,
-                    idle_timeout_seconds,
-                    expires_at > created_at
-                FROM public.iam_sessions
-                WHERE token_hash = %s
-                """,
-                (empreinte,),
-            )
-
-            resultat = curseur.fetchone()
-
-        assert resultat is not None
-        assert resultat[0] == 3
-        assert bytes(resultat[1]) == empreinte
-        assert resultat[2] == 900
-        assert resultat[3] is True
-
-    finally:
-        connexion.rollback()
-        connexion.close()
-
 
 
 def test_creation_session_postgresql_isolee(monkeypatch):
@@ -828,4 +775,66 @@ def test_limite_expiration_session_iam():
         connexion.close()
 
 
+def test_concurrence_postgresql_verrou_transactionnel():
+    """Deux transactions respectent un verrou consultatif."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from database import connexion_db
+
+    connexion_a = connexion_db()
+
+    try:
+        assert connexion_a.info.dbname == "netatlas_test"
+        assert connexion_a.autocommit is False
+
+        with connexion_a.cursor() as curseur:
+            curseur.execute(
+                "SELECT pg_advisory_xact_lock(%s)",
+                (20261109,),
+            )
+
+        def tenter_verrou():
+            connexion_b = connexion_db()
+
+            try:
+                assert connexion_b.info.dbname == "netatlas_test"
+                assert connexion_b is not connexion_a
+
+                with connexion_b.cursor() as curseur:
+                    curseur.execute(
+                        "SET LOCAL lock_timeout = '1000ms'"
+                    )
+                    curseur.execute(
+                        "SELECT pg_try_advisory_xact_lock(%s)",
+                        (20261109,),
+                    )
+                    resultat_pendant = curseur.fetchone()[0]
+
+                connexion_b.rollback()
+
+                return resultat_pendant
+
+            finally:
+                connexion_b.rollback()
+                connexion_b.close()
+
+        with ThreadPoolExecutor(max_workers=1) as executant:
+            resultat = executant.submit(tenter_verrou).result(
+                timeout=3
+            )
+
+        assert resultat is False
+
+        connexion_a.rollback()
+
+        with connexion_a.cursor() as curseur:
+            curseur.execute(
+                "SELECT pg_try_advisory_xact_lock(%s)",
+                (20261109,),
+            )
+            assert curseur.fetchone()[0] is True
+
+    finally:
+        connexion_a.rollback()
+        connexion_a.close()
 
