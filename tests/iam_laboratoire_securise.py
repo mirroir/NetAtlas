@@ -10,7 +10,7 @@ import stat
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 PREFIXE_BASE = "netatlas_iam_concurrence_"
@@ -337,7 +337,7 @@ def enregistrer_operation(nom_base: str) -> dict:
         "identifiant": secrets.token_hex(16),
         "base": nom_base,
         "etat": "preparation",
-        "cree_le": datetime.now(timezone.utc).isoformat(),
+        "cree_le": datetime.now(UTC).isoformat(),
     }
 
     sauvegarder_operation(operation, creation=True)
@@ -486,7 +486,7 @@ def reconcilier_operation_absente(
                     "etat": "nettoyage_confirme",
                     "mode_cloture": "reconciliation_absence",
                     "etat_avant_reconciliation": etat_initial,
-                    "reconcilie_le": datetime.now(timezone.utc).isoformat(),
+                    "reconcilie_le": datetime.now(UTC).isoformat(),
                 }
             )
 
