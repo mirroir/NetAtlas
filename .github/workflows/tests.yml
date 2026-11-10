@@ -387,6 +387,7 @@ jobs:
             --ignore=tests/test_admin_passkey_recovery_integration.py \
             --ignore=tests/test_admin_passkey_recovery_rls.py \
             --ignore=tests/test_admin_passkey_recovery_privileges.py \
+            --ignore=tests/test_iam_sessions_concurrence.py \
             --cov=python \
             --cov-report=term-missing \
             --cov-fail-under=100
@@ -400,4 +401,5 @@ jobs:
           python -m pytest -q \
             tests/test_admin_passkey_recovery_integration.py \
             tests/test_admin_passkey_recovery_rls.py \
-            tests/test_admin_passkey_recovery_privileges.py
+            tests/test_admin_passkey_recovery_privileges.py \
+            tests/test_iam_sessions_concurrence.py

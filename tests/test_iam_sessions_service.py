@@ -838,3 +838,273 @@ def test_concurrence_postgresql_verrou_transactionnel():
         connexion_a.rollback()
         connexion_a.close()
 
+
+
+@pytest.mark.parametrize(
+    "jeton",
+    [
+        "",
+        "invalide",
+        "g" * 64,
+        "a" * 63,
+        None,
+        123,
+        True,
+    ],
+)
+def test_revoquer_session_iam_jeton_invalide(
+    monkeypatch,
+    jeton,
+):
+    """Un jeton invalide est refusé sans connexion PostgreSQL."""
+
+    def connexion_interdite():
+        pytest.fail(
+            "Aucune connexion ne doit être ouverte."
+        )
+
+    monkeypatch.setattr(
+        iam_sessions,
+        "connexion_db",
+        connexion_interdite,
+    )
+
+    assert iam_sessions.revoquer_session_iam(jeton) is False
+
+
+def test_revoquer_session_iam_postgresql_isolee(monkeypatch):
+    """Révoque une session IAM sans écriture persistante."""
+    import hashlib
+
+    from database import connexion_db
+
+    connexion = connexion_db()
+
+    try:
+        assert connexion.info.dbname == "netatlas_test"
+        assert connexion.autocommit is False
+
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                "SELECT id FROM public.users ORDER BY id LIMIT 1"
+            )
+            utilisateur = curseur.fetchone()
+
+        assert utilisateur is not None
+        user_id = utilisateur[0]
+
+        class ConnexionSansCommit:
+            def cursor(self):
+                return connexion.cursor()
+
+            def commit(self):
+                pass
+
+            def rollback(self):
+                connexion.rollback()
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(
+            iam_sessions,
+            "connexion_db",
+            lambda: ConnexionSansCommit(),
+        )
+
+        jeton = iam_sessions.creer_session_iam(user_id)
+        empreinte = hashlib.sha256(
+            bytes.fromhex(jeton)
+        ).digest()
+
+        assert iam_sessions.revoquer_session_iam(jeton) is True
+
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT revoked_at, revocation_reason
+                FROM public.iam_sessions
+                WHERE token_hash = %s
+                """,
+                (empreinte,),
+            )
+            resultat = curseur.fetchone()
+
+        assert resultat is not None
+        assert resultat[0] is not None
+        assert resultat[1] == "revocation_utilisateur"
+
+        assert iam_sessions.valider_session_iam(jeton) is None
+        assert iam_sessions.revoquer_session_iam(jeton) is False
+
+    finally:
+        connexion.rollback()
+        connexion.close()
+
+
+
+def test_revoquer_session_iam_erreur_sql(monkeypatch):
+    """Une erreur SQL provoque rollback, fermeture et propagation."""
+
+    class ErreurSQL(Exception):
+        pass
+
+    class CurseurErreur:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, requete, parametres):
+            raise ErreurSQL("Erreur SQL simulée")
+
+    class ConnexionErreur:
+        def __init__(self):
+            self.rollback_effectue = False
+            self.fermeture_effectuee = False
+
+        def cursor(self):
+            return CurseurErreur()
+
+        def commit(self):
+            pytest.fail("COMMIT interdit après une erreur SQL.")
+
+        def rollback(self):
+            self.rollback_effectue = True
+
+        def close(self):
+            self.fermeture_effectuee = True
+
+    connexion = ConnexionErreur()
+
+    monkeypatch.setattr(
+        iam_sessions,
+        "connexion_db",
+        lambda: connexion,
+    )
+
+    with pytest.raises(ErreurSQL, match="Erreur SQL simulée"):
+        iam_sessions.revoquer_session_iam("a" * 64)
+
+    assert connexion.rollback_effectue is True
+    assert connexion.fermeture_effectuee is True
+
+
+
+def test_concurrence_postgresql_verrou_ligne_utilisateur():
+    """Vérifie l'exclusion des verrous sur une ligne utilisateur."""
+    import psycopg
+
+    from database import connexion_db
+
+    connexion_a = connexion_db()
+    connexion_b = None
+
+    try:
+        assert connexion_a.info.dbname == "netatlas_test"
+        assert connexion_a.autocommit is False
+
+        with connexion_a.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id
+                FROM public.users
+                WHERE id = %s
+                FOR UPDATE
+                """,
+                (3,),
+            )
+            assert curseur.fetchone() == (3,)
+
+        connexion_b = connexion_db()
+
+        assert connexion_b.info.dbname == "netatlas_test"
+        assert connexion_b is not connexion_a
+
+        with connexion_b.cursor() as curseur:
+            curseur.execute("SET LOCAL lock_timeout = '1000ms'")
+
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                curseur.execute(
+                    """
+                    SELECT id
+                    FROM public.users
+                    WHERE id = %s
+                    FOR UPDATE NOWAIT
+                    """,
+                    (3,),
+                )
+
+        connexion_b.rollback()
+        connexion_a.rollback()
+
+        with connexion_b.cursor() as curseur:
+            curseur.execute(
+                """
+                SELECT id
+                FROM public.users
+                WHERE id = %s
+                FOR UPDATE NOWAIT
+                """,
+                (3,),
+            )
+            assert curseur.fetchone() == (3,)
+
+    finally:
+        connexion_a.rollback()
+        connexion_a.close()
+
+        if connexion_b is not None:
+            connexion_b.rollback()
+            connexion_b.close()
+
+
+
+def test_iam_validation_apres_revocation_isolee(monkeypatch):
+    """Une session révoquée ne peut plus être validée."""
+    from database import connexion_db
+
+    connexion = connexion_db()
+
+    try:
+        assert connexion.info.dbname == "netatlas_test"
+        assert connexion.autocommit is False
+
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                "SELECT id FROM public.users ORDER BY id LIMIT 1"
+            )
+            utilisateur = curseur.fetchone()
+
+        assert utilisateur is not None
+
+        class ConnexionSansCommit:
+            def cursor(self):
+                return connexion.cursor()
+
+            def commit(self):
+                pass
+
+            def rollback(self):
+                connexion.rollback()
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(
+            iam_sessions,
+            "connexion_db",
+            lambda: ConnexionSansCommit(),
+        )
+
+        jeton = iam_sessions.creer_session_iam(utilisateur[0])
+
+        assert iam_sessions.valider_session_iam(jeton) is not None
+        assert iam_sessions.revoquer_session_iam(jeton) is True
+        assert iam_sessions.valider_session_iam(jeton) is None
+        assert iam_sessions.revoquer_session_iam(jeton) is False
+
+    finally:
+        connexion.rollback()
+        connexion.close()

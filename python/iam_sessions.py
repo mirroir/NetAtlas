@@ -141,3 +141,45 @@ def valider_session_iam(jeton: str) -> dict | None:
 
     finally:
         connexion.close()
+
+
+def revoquer_session_iam(jeton: str) -> bool:
+    """Révoque une session IAM par son jeton opaque."""
+
+    if not isinstance(jeton, str) or len(jeton) != 64:
+        return False
+
+    try:
+        jeton_brut = bytes.fromhex(jeton)
+    except ValueError:
+        return False
+
+    empreinte = hashlib.sha256(jeton_brut).digest()
+    connexion = connexion_db()
+
+    try:
+        with connexion.cursor() as curseur:
+            curseur.execute(
+                """
+                UPDATE public.iam_sessions
+                SET
+                    revoked_at = statement_timestamp(),
+                    revocation_reason = 'revocation_utilisateur'
+                WHERE token_hash = %s
+                  AND revoked_at IS NULL
+                RETURNING id
+                """,
+                (empreinte,),
+            )
+
+            resultat = curseur.fetchone()
+
+        connexion.commit()
+        return resultat is not None
+
+    except Exception:
+        connexion.rollback()
+        raise
+
+    finally:
+        connexion.close()
