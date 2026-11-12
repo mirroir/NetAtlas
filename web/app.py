@@ -844,12 +844,14 @@ def espace_utilisateur():
         nom=session["nom"],
     )
 
-@app.route("/deconnexion")
+
+@app.post("/deconnexion")
 def deconnexion():
+    """Déconnecte l'utilisateur de sa session Flask."""
+
     session.clear()
 
     return redirect(url_for("accueil"))
-
 
 # ============================================================
 # CONSULTATION UTILISATEUR CONNECTÉ

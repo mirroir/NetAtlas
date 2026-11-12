@@ -112,6 +112,21 @@ body {
 	transform: translateY(-2px);
 }
 
+/* Boutons de navigation et de déconnexion */
+button.choix-acces {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* Accessibilité : navigation au clavier */
+.choix-acces:focus-visible {
+    outline: 3px solid #8ecbff;
+    outline-offset: 3px;
+}
+
 
 .admin-access {
     position: absolute;

@@ -80,12 +80,17 @@
 
 								<p>Historique et planification : prochainement disponible.</p>
 
-								<a
-										class="choix-acces"
-										href="{{ url_for('deconnexion') }}"
-										>
-										Se déconnecter
-								</a>
+								<form action="{{ url_for('deconnexion') }}" method="POST">
+									<input
+											type="hidden"
+											name="csrf_token"
+											value="{{ csrf_token() }}"
+											>
+											<button type="submit" class="choix-acces">
+												Se déconnecter
+											</button>
+								</form>
+
 
 				</section>
 			</main>

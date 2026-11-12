@@ -25,9 +25,16 @@
 						Consulter NetAtlas
 					</a>
 
-					<a class="choix-acces" href="{{ url_for('deconnexion') }}">
-						Déconnexion
-					</a>
+					<form action="{{ url_for('deconnexion') }}" method="POST">
+						<input
+								type="hidden"
+								name="csrf_token"
+								value="{{ csrf_token() }}"
+								>
+								<button type="submit" class="choix-acces">
+									Déconnexion
+								</button>
+					</form>
 
 				</section>
 			</main>
