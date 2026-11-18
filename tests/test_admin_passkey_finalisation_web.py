@@ -20,6 +20,30 @@ CHALLENGE = b"a" * 32
 SESSION_BINDING = b"b" * 32
 
 
+@pytest.fixture(autouse=True)
+def authentification_iam_finalisation(request, administrateur_iam, monkeypatch):
+    """Active IAM uniquement pour les scénarios de finalisation autorisés."""
+
+    tests_sans_iam = {
+        "test_finalisation_visiteur_refuse",
+        "test_finalisation_utilisateur_refuse",
+        "test_finalisation_sans_csrf_refuse",
+    }
+
+    if request.node.name in tests_sans_iam:
+        return
+
+    original = app.test_client
+
+    def client_iam(*args, **kwargs):
+        client = original(*args, **kwargs)
+        client.set_cookie("netatlas_iam", administrateur_iam)
+        return client
+
+    monkeypatch.setattr(app, "test_client", client_iam)
+
+
+
 def preparer_session(client, role="admin", user_id=2, tentative=True):
     """Prépare une session de test sans connexion réelle."""
 
@@ -33,8 +57,37 @@ def preparer_session(client, role="admin", user_id=2, tentative=True):
                 "challenge": CHALLENGE.hex(),
                 "session_binding": SESSION_BINDING.hex(),
                 "user_id": user_id,
+                "iam_token_hash": hashlib.sha256(
+                    ("a" * 64).encode("ascii")
+                ).hexdigest(),
             }
 
+def test_finalisation_identite_iam_differente_refuse(csrf_data):
+    """Refuse une tentative Passkey liée à une autre identité."""
+    with app.test_client() as client:
+        jeton = csrf_data(client)
+
+        # IAM : administrateur A (user_id=2).
+        # Tentative Passkey : utilisateur B (user_id=3).
+        preparer_session(client, user_id=3)
+
+        with (
+            patch("web.app.verifier_enregistrement") as verifier,
+            patch("web.app.finaliser_enregistrement_webauthn") as finaliser,
+        ):
+            reponse = client.post(
+                ROUTE,
+                json={"id": "credential-test"},
+                headers={"X-CSRFToken": jeton["csrf_token"]},
+            )
+
+        assert reponse.status_code == 400
+        assert reponse.get_json() == {
+            "erreur": "Tentative Passkey invalide."
+        }
+
+        verifier.assert_not_called()
+        finaliser.assert_not_called()
 
 def test_finalisation_visiteur_refuse(csrf_data):
     with app.test_client() as client:
@@ -228,7 +281,9 @@ def test_finalisation_erreur_cryptographique(csrf_data):
             "web.app.verifier_enregistrement",
             side_effect=ValueError("Challenge invalide"),
         ),
-        patch("web.app.finaliser_enregistrement_webauthn") as finaliser,
+        patch(
+            "web.app.finaliser_enregistrement_webauthn"
+        ) as finaliser,
         app.test_client() as client,
     ):
         jeton = csrf_data(client)
@@ -242,7 +297,6 @@ def test_finalisation_erreur_cryptographique(csrf_data):
 
     assert reponse.status_code == 400
     finaliser.assert_not_called()
-
 
 def test_finalisation_erreur_postgresql(csrf_data):
     verification = SimpleNamespace(

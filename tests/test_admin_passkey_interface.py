@@ -1,6 +1,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
@@ -9,16 +10,33 @@ from web.app import app
 
 
 def test_interface_passkey_administrateur():
-    """Vérifie les éléments Passkey dans l'espace administrateur."""
-    with app.test_client() as client:
-        with client.session_transaction() as session:
-            session["user_id"] = 2
-            session["nom"] = "AdminNetAtlas"
-            session["role"] = "admin"
+    """Vérifie l'interface Passkey avec une session IAM administrateur."""
+
+    jeton = "a" * 64
+
+    with (
+        patch(
+            "web.app.valider_session_iam",
+            return_value={"user_id": 2, "nom": "AdminNetAtlas"},
+        ) as valider,
+        patch(
+            "web.app.get_utilisateur_webauthn",
+            return_value={
+                "user_id": 2,
+                "nom": "AdminNetAtlas",
+                "role": "admin",
+            },
+        ) as identifier,
+        app.test_client() as client,
+    ):
+        client.set_cookie("netatlas_iam", jeton)
 
         reponse = client.get("/admin")
 
     assert reponse.status_code == 200
+
+    valider.assert_called_once_with(jeton)
+    identifier.assert_called_once_with(2, "admin")
 
     contenu = reponse.get_data(as_text=True)
 

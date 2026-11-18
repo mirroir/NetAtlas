@@ -46,3 +46,39 @@ def csrf_data():
 
     return obtenir_jeton
 
+
+@pytest.fixture
+def administrateur_iam(monkeypatch):
+    """Simule une identité IAM administrateur autorisée."""
+
+    jeton = "a" * 64
+
+    def valider(jeton_recu):
+        if jeton_recu != jeton:
+            return None
+
+        return {
+            "user_id": 2,
+            "nom": "AdminNetAtlas",
+        }
+
+    def identifier(user_id, role):
+        if user_id != 2 or role != "admin":
+            return None
+
+        return {
+            "user_id": 2,
+            "nom": "AdminNetAtlas",
+            "role": "admin",
+        }
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        valider,
+    )
+    monkeypatch.setattr(
+        "web.app.get_utilisateur_webauthn",
+        identifier,
+    )
+
+    return jeton

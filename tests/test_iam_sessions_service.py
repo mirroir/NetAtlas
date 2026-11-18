@@ -1108,3 +1108,278 @@ def test_iam_validation_apres_revocation_isolee(monkeypatch):
     finally:
         connexion.rollback()
         connexion.close()
+
+@pytest.mark.parametrize(
+    ("ancien_jeton", "nombre_requetes"),
+    [
+        (None, 1),
+        ("a" * 64, 2),
+    ],
+)
+def test_renouvellement_iam_transaction_reussie(
+    monkeypatch,
+    ancien_jeton,
+    nombre_requetes,
+):
+    """La rotation utilise une transaction et un seul commit."""
+
+    import hashlib
+    class CurseurSimule:
+        def __init__(self):
+            self.requetes = []
+            self.rowcount = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, requete, parametres):
+            self.requetes.append((requete, parametres))
+
+            if "UPDATE public.iam_sessions" in requete:
+                self.rowcount = 1
+            else:
+                self.rowcount = 1
+
+    class ConnexionSimulee:
+        def __init__(self):
+            self.curseur = CurseurSimule()
+            self.commits = 0
+            self.rollbacks = 0
+            self.fermetures = 0
+
+        def cursor(self):
+            return self.curseur
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+        def close(self):
+            self.fermetures += 1
+
+    connexion = ConnexionSimulee()
+
+    monkeypatch.setattr(
+        iam_sessions,
+        "connexion_db",
+        lambda: connexion,
+    )
+
+    jeton = iam_sessions.renouveler_session_iam(
+        3,
+        ancien_jeton,
+    )
+
+    assert isinstance(jeton, str)
+    assert len(jeton) == 64
+    assert len(connexion.curseur.requetes) == nombre_requetes
+    assert connexion.commits == 1
+    assert connexion.rollbacks == 0
+    assert connexion.fermetures == 1
+
+    if ancien_jeton is not None:
+        requete, parametres = connexion.curseur.requetes[0]
+
+        assert "UPDATE public.iam_sessions" in requete
+        assert "user_id = %s" in requete
+        assert parametres == (
+            hashlib.sha256(bytes.fromhex(ancien_jeton)).digest(),
+            3,
+        )
+
+    requete, parametres = connexion.curseur.requetes[-1]
+
+    assert "INSERT INTO public.iam_sessions" in requete
+    assert parametres[0] == 3
+    assert parametres[1] == hashlib.sha256(
+        bytes.fromhex(jeton)
+    ).digest()
+    assert parametres[2:] == (28800, 900)
+
+def test_renouvellement_iam_refuse_si_ancienne_session_invalide(
+    monkeypatch,
+):
+    """Une rotation sans ancienne session valide est annulée."""
+
+    class CurseurSimule:
+        def __init__(self):
+            self.rowcount = 0
+            self.requetes = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, requete, parametres):
+            self.requetes.append((requete, parametres))
+            self.rowcount = 0
+
+    class ConnexionSimulee:
+        def __init__(self):
+            self.curseur = CurseurSimule()
+            self.commits = 0
+            self.rollbacks = 0
+            self.fermetures = 0
+
+        def cursor(self):
+            return self.curseur
+
+        def commit(self):
+            self.commits += 1
+
+        def rollback(self):
+            self.rollbacks += 1
+
+        def close(self):
+            self.fermetures += 1
+
+    connexion = ConnexionSimulee()
+
+    monkeypatch.setattr(
+        iam_sessions,
+        "connexion_db",
+        lambda: connexion,
+    )
+
+    with pytest.raises(ValueError, match="ancienne session invalide"):
+        iam_sessions.renouveler_session_iam(
+            3,
+            ancien_jeton="a" * 64,
+        )
+
+    assert len(connexion.curseur.requetes) == 1
+    assert "UPDATE public.iam_sessions" in connexion.curseur.requetes[0][0]
+    assert connexion.commits == 0
+    assert connexion.rollbacks == 1
+    assert connexion.fermetures == 1
+
+@pytest.mark.parametrize(
+    "operation_en_erreur",
+    ["UPDATE", "INSERT", "COMMIT"],
+)
+
+def test_renouvellement_iam_rollback_sur_erreur(
+    monkeypatch,
+    operation_en_erreur,
+):
+    """Une erreur déclenche rollback et fermeture de connexion."""
+
+    import psycopg
+    class CurseurSimule:
+        def __init__(self):
+            self.rowcount = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def execute(self, requete, parametres):
+            if (
+                operation_en_erreur in ("UPDATE", "INSERT")
+                and operation_en_erreur in requete
+            ):
+                raise psycopg.OperationalError(
+                    "Erreur transactionnelle simulée."
+                )
+
+            if "UPDATE public.iam_sessions" in requete:
+                self.rowcount = 1
+            else:
+                self.rowcount = 1
+
+    class ConnexionSimulee:
+        def __init__(self):
+            self.commits = 0
+            self.rollbacks = 0
+            self.fermetures = 0
+
+        def cursor(self):
+            return CurseurSimule()
+
+        def commit(self):
+            self.commits += 1
+
+            if operation_en_erreur == "COMMIT":
+                raise psycopg.OperationalError(
+                    "Erreur de commit simulée."
+                )
+
+        def rollback(self):
+            self.rollbacks += 1
+
+        def close(self):
+            self.fermetures += 1
+
+    connexion = ConnexionSimulee()
+
+    monkeypatch.setattr(
+        iam_sessions,
+        "connexion_db",
+        lambda: connexion,
+    )
+
+    with pytest.raises(psycopg.OperationalError):
+        iam_sessions.renouveler_session_iam(
+            3,
+            "a" * 64,
+        )
+
+    assert connexion.rollbacks == 1
+    assert connexion.fermetures == 1
+
+    if operation_en_erreur == "COMMIT":
+        assert connexion.commits == 1
+    else:
+        assert connexion.commits == 0
+
+
+@pytest.mark.parametrize(
+    ("user_id", "ancien_jeton", "duree", "inactivite"),
+    [
+        (0, None, 3600, 900),
+        (True, None, 3600, 900),
+        ("3", None, 3600, 900),
+        (3, "invalide", 3600, 900),
+        (3, "z" * 64, 3600, 900),
+        (3, None, 0, 900),
+        (3, None, 28801, 900),
+        (3, None, 3600, 59),
+        (3, None, 3600, 86401),
+    ],
+)
+def test_renouvellement_iam_parametres_invalides(
+    monkeypatch,
+    user_id,
+    ancien_jeton,
+    duree,
+    inactivite,
+):
+    """Les paramètres invalides sont rejetés avant connexion."""
+
+    def connexion_interdite():
+        pytest.fail(
+            "Aucune connexion PostgreSQL ne doit être ouverte."
+        )
+
+    monkeypatch.setattr(
+        iam_sessions,
+        "connexion_db",
+        connexion_interdite,
+    )
+
+    with pytest.raises(ValueError):
+        iam_sessions.renouveler_session_iam(
+            user_id,
+            ancien_jeton,
+            duree_secondes=duree,
+            inactivite_secondes=inactivite,
+        )

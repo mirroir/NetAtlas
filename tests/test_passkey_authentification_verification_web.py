@@ -207,6 +207,10 @@ def test_verification_connexion_reussie(csrf_data):
     )
 
     with (
+        patch(
+            "web.app.creer_session_iam",
+            return_value="a" * 64,
+        ) as creer_iam,
         patch("web.app.get_credential_webauthn", return_value=PASSKEY),
         patch(
             "web.app.verifier_authentification",
@@ -235,11 +239,22 @@ def test_verification_connexion_reussie(csrf_data):
             role = session.get("role")
             tentative = session.get("passkey_authentication")
             ancienne_donnee = session.get("ancienne_donnee")
+
     assert reponse.status_code == 200
     assert reponse.get_json()["redirect"] == "/utilisateur"
-    assert user_id == 3
-    assert nom == "UtilisateurTest"
-    assert role == "utilisateur"
+    assert user_id is None
+    assert nom is None
+    assert role is None
+    creer_iam.assert_called_once_with(3)
+
+    cookie = reponse.headers.get("Set-Cookie", "")
+    assert "netatlas_iam=" + ("a" * 64) in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=Lax" in cookie
+    assert "Path=/" in cookie
+    assert "Max-Age=" not in cookie
+    assert "Expires=" not in cookie
+    assert "a" * 64 not in reponse.get_json()["message"]
     assert tentative is None
     assert ancienne_donnee is None
 
@@ -259,3 +274,361 @@ def test_verification_connexion_reussie(csrf_data):
         nouveau_compteur=6,
         role_nom="utilisateur",
     )
+
+
+def simuler_verification_passkey_iam(client, csrf):
+    """Prépare et exécute une authentification Passkey valide."""
+    preparer_tentative(client)
+    return envoyer_verification(client, csrf)
+
+
+@pytest.mark.parametrize(
+    "ancien_jeton",
+    [
+        None,
+        "b" * 64,
+    ],
+)
+def test_iam_creation_apres_passkey(csrf_data, ancien_jeton):
+    """Une Passkey valide crée une session sans cookie IAM valide."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            return_value=None,
+        ) as valider,
+        patch(
+            "web.app.creer_session_iam",
+            return_value="a" * 64,
+        ) as creer,
+        patch("web.app.renouveler_session_iam") as renouveler,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+
+        if ancien_jeton is not None:
+            client.set_cookie("netatlas_iam", ancien_jeton)
+
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 200
+    creer.assert_called_once_with(3)
+    renouveler.assert_not_called()
+
+    if ancien_jeton is None:
+        valider.assert_not_called()
+    else:
+        valider.assert_called_once_with(ancien_jeton)
+
+    assert reponse.get_json()["redirect"] == "/utilisateur"
+    assert "netatlas_iam=" + ("a" * 64) in reponse.headers.get(
+        "Set-Cookie", ""
+    )
+    assert reponse.headers["Cache-Control"] == "no-store"
+
+
+def test_iam_rotation_apres_passkey(csrf_data):
+    """Une session IAM valide du même utilisateur est renouvelée."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            return_value={"user_id": 3},
+        ) as valider,
+        patch(
+            "web.app.renouveler_session_iam",
+            return_value="a" * 64,
+        ) as renouveler,
+        patch("web.app.creer_session_iam") as creer,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "b" * 64)
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 200
+    valider.assert_called_once_with("b" * 64)
+    renouveler.assert_called_once_with(3, ancien_jeton="b" * 64)
+    creer.assert_not_called()
+    assert "netatlas_iam=" + ("a" * 64) in reponse.headers.get(
+        "Set-Cookie", ""
+    )
+
+
+def test_iam_cookie_autre_utilisateur_apres_passkey(csrf_data):
+    """Un cookie d'un autre utilisateur ne doit jamais être révoqué."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            return_value={"user_id": 99},
+        ) as valider,
+        patch(
+            "web.app.creer_session_iam",
+            return_value="a" * 64,
+        ) as creer,
+        patch("web.app.renouveler_session_iam") as renouveler,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "b" * 64)
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 200
+    valider.assert_called_once_with("b" * 64)
+    creer.assert_called_once_with(3)
+    renouveler.assert_not_called()
+
+
+def test_iam_rotation_invalidee_pendant_passkey(csrf_data):
+    """Une session invalidée après validation autorise une nouvelle création."""
+
+    from iam_sessions import SessionIAMInvalide
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            return_value={"user_id": 3},
+        ) as valider,
+        patch(
+            "web.app.renouveler_session_iam",
+            side_effect=SessionIAMInvalide(
+                "Rotation IAM refusée : ancienne session invalide."
+            ),
+        ) as renouveler,
+        patch(
+            "web.app.creer_session_iam",
+            return_value="a" * 64,
+        ) as creer,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "b" * 64)
+
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 200
+    valider.assert_called_once_with("b" * 64)
+    renouveler.assert_called_once_with(3, ancien_jeton="b" * 64)
+    creer.assert_called_once_with(3)
+    assert "netatlas_iam=" + ("a" * 64) in reponse.headers.get(
+        "Set-Cookie", ""
+    )
+
+
+
+def test_iam_rotation_valueerror_inattendue_refuse_connexion(csrf_data):
+    """Une erreur ValueError non métier ne doit pas créer de session."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            return_value={"user_id": 3},
+        ) as valider,
+        patch(
+            "web.app.renouveler_session_iam",
+            side_effect=ValueError("Erreur inattendue de rotation."),
+        ) as renouveler,
+        patch("web.app.creer_session_iam") as creer,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "b" * 64)
+
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 503
+    valider.assert_called_once_with("b" * 64)
+    renouveler.assert_called_once_with(3, ancien_jeton="b" * 64)
+    creer.assert_not_called()
+    assert "netatlas_iam=" not in reponse.headers.get("Set-Cookie", "")
+
+
+def test_iam_echec_creation_refuse_connexion(csrf_data):
+    """Une erreur de création IAM interdit la connexion."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.creer_session_iam",
+            side_effect=RuntimeError("Erreur PostgreSQL"),
+        ),
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 503
+    assert reponse.get_json()["erreur"] == (
+        "Création ou renouvellement de session impossible."
+    )
+    assert "netatlas_iam=" not in reponse.headers.get("Set-Cookie", "")
+
+
+def test_iam_echec_revocation_refuse_renouvellement(csrf_data):
+    """Une erreur transactionnelle empêche le renouvellement IAM."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            return_value={"user_id": 3},
+        ) as valider,
+        patch(
+            "web.app.renouveler_session_iam",
+            side_effect=RuntimeError(
+                "Échec transactionnel PostgreSQL simulé."
+            ),
+        ) as renouveler,
+        patch("web.app.creer_session_iam") as creer,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "b" * 64)
+
+        reponse = simuler_verification_passkey_iam(client, csrf)
+        ancien_cookie = client.get_cookie("netatlas_iam")
+
+    assert reponse.status_code == 503
+    assert reponse.get_json()["erreur"] == (
+        "Création ou renouvellement de session impossible."
+    )
+    valider.assert_called_once_with("b" * 64)
+    renouveler.assert_called_once_with(3, ancien_jeton="b" * 64)
+    creer.assert_not_called()
+    assert ancien_cookie is not None
+    assert ancien_cookie.value == "b" * 64
+    assert "netatlas_iam=" not in reponse.headers.get("Set-Cookie", "")
+
+
+def test_iam_echec_validation_refuse_connexion(csrf_data):
+    """Une erreur PostgreSQL de validation IAM interdit la connexion."""
+
+    verification = SimpleNamespace(
+        credential_id=CREDENTIAL_ID,
+        new_sign_count=6,
+    )
+
+    with (
+        patch("web.app.get_credential_webauthn", return_value=PASSKEY),
+        patch(
+            "web.app.verifier_authentification",
+            return_value=verification,
+        ),
+        patch(
+            "web.app.finaliser_authentification_webauthn",
+            return_value=UTILISATEUR,
+        ),
+        patch(
+            "web.app.valider_session_iam",
+            side_effect=RuntimeError("Erreur PostgreSQL"),
+        ) as valider,
+        patch("web.app.creer_session_iam") as creer,
+        patch("web.app.renouveler_session_iam") as renouveler,
+        app.test_client() as client,
+    ):
+        csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "b" * 64)
+        reponse = simuler_verification_passkey_iam(client, csrf)
+
+    assert reponse.status_code == 503
+    valider.assert_called_once_with("b" * 64)
+    creer.assert_not_called()
+    renouveler.assert_not_called()
+    assert "netatlas_iam=" not in reponse.headers.get("Set-Cookie", "")

@@ -7,7 +7,56 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from unittest.mock import patch
 
+import pytest
+
 from web.app import app
+
+
+@pytest.fixture(autouse=True)
+def authentification_iam_tests(request, administrateur_iam, monkeypatch):
+    """Active IAM uniquement pour les scénarios administrateur autorisés."""
+
+    tests_autorises = {
+        "test_passkey_enregistrement_admin_autorise",
+        "test_passkey_enregistrement_erreur_postgresql",
+        "test_passkey_erreur_postgresql_invalide_ancienne_tentative",
+        "test_passkey_deux_demandes_successives",
+    }
+
+    if request.node.name not in tests_autorises:
+        return
+
+    original = app.test_client
+
+    def client_iam(*args, **kwargs):
+        client = original(*args, **kwargs)
+        client.set_cookie("netatlas_iam", administrateur_iam)
+        return client
+
+    monkeypatch.setattr(app, "test_client", client_iam)
+
+
+def test_passkey_admin_session_flask_seule_refusee(csrf_data):
+    """Une ancienne session Flask admin ne suffit pas sans IAM."""
+
+    with app.test_client() as client:
+        donnees_csrf = csrf_data(client)
+
+        with client.session_transaction() as session:
+            session["user_id"] = 2
+            session["nom"] = "AdminNetAtlas"
+            session["role"] = "admin"
+
+        reponse = client.post(
+            "/admin/passkey/enregistrement/options",
+            data={"csrf_token": donnees_csrf["csrf_token"]},
+        )
+
+        with client.session_transaction() as session:
+            assert "passkey_registration" not in session
+
+    assert reponse.status_code == 302
+    assert "/connexion/admin" in reponse.location
 
 
 def test_passkey_enregistrement_visiteur_refuse(csrf_data):

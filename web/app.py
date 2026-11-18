@@ -4,7 +4,16 @@ import secrets
 import sys
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Flask,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_wtf.csrf import CSRFProtect
 from psycopg.errors import UniqueViolation
 from webauthn import options_to_json
@@ -16,6 +25,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 import hmac
 from functools import wraps
 
+from iam_sessions import (
+    SessionIAMInvalide,
+    creer_session_iam,
+    renouveler_session_iam,
+    revoquer_session_iam,
+    valider_session_iam,
+)
 from webauthn_service import (
     generer_options_authentification,
     generer_options_enregistrement,
@@ -44,6 +60,7 @@ from database import (
     get_place_tags,
     get_territoires_par_categorie_et_pays,
     get_user_reaction,
+    get_utilisateur_webauthn,
     get_villes_par_categorie_pays_territoire,
     identifier_admin_recuperation_passkey,
     preparer_recuperation_passkey_admin_securisee,
@@ -53,6 +70,7 @@ from database import (
 )
 
 app = Flask(__name__)
+
 
 # ============================================================
 # REVERSE PROXY CADDY
@@ -115,6 +133,42 @@ csrf = CSRFProtect()
 
 app.config["WTF_CSRF_CHECK_DEFAULT"] = True
 csrf.init_app(app)
+
+def obtenir_utilisateur_iam(role_requis):
+    """Retourne une identité autorisée depuis une session IAM valide."""
+
+    if role_requis not in ("admin", "utilisateur"):
+        raise ValueError("Rôle IAM invalide.")
+
+    if not hasattr(g, "utilisateurs_iam"):
+        g.utilisateurs_iam = {}
+
+    if role_requis in g.utilisateurs_iam:
+        return g.utilisateurs_iam[role_requis]
+
+    if not hasattr(g, "identite_iam"):
+        jeton = request.cookies.get("netatlas_iam")
+
+        if not jeton:
+            g.identite_iam = None
+        else:
+            g.identite_iam = valider_session_iam(jeton)
+
+    identite = g.identite_iam
+
+    if identite is None:
+        g.utilisateurs_iam[role_requis] = None
+        return None
+
+    utilisateur = get_utilisateur_webauthn(
+        identite["user_id"],
+        role_requis,
+    )
+
+    g.utilisateurs_iam[role_requis] = utilisateur
+
+    return utilisateur
+
 
 def est_utilisateur_connecte():
     return (
@@ -231,17 +285,19 @@ def connexion_admin():
 # ============================================================
 
 
+
 @app.route("/admin")
 def espace_admin():
-    if (
-        "user_id" not in session
-        or session.get("role") != "admin"
-    ):
+    """Affiche l'administration uniquement avec une session IAM autorisée."""
+
+    utilisateur = obtenir_utilisateur_iam("admin")
+
+    if utilisateur is None:
         return redirect(url_for("connexion_admin"))
 
     return render_template(
         "espace_admin.html",
-        nom=session.get("nom"),
+        nom=utilisateur["nom"],
     )
 
 
@@ -254,17 +310,16 @@ def espace_admin():
 def options_enregistrement_passkey_admin():
     """Prépare l'enregistrement d'une Passkey administrateur."""
 
-    if (
-        session.get("user_id") is None
-        or session.get("role") != "admin"
-    ):
+    utilisateur = obtenir_utilisateur_iam("admin")
+
+    if utilisateur is None:
         return redirect(url_for("connexion_admin"))
 
     # Invalider toute ancienne tentative avant d'en préparer une nouvelle.
     session.pop("passkey_registration", None)
 
-    user_id = session["user_id"]
-    nom = session["nom"]
+    user_id = utilisateur["user_id"]
+    nom = utilisateur["nom"]
 
     # Générer les options WebAuthn.
     options = generer_options_enregistrement(
@@ -304,11 +359,18 @@ def options_enregistrement_passkey_admin():
             mimetype="text/plain",
         )
 
-    # Conserver les données temporaires pour la vérification.
+    # Lier la tentative à la session IAM qui l'a initiée.
+    jeton_iam = request.cookies.get("netatlas_iam")
+    empreinte_iam = hashlib.sha256(
+        jeton_iam.encode("ascii")
+    ).hexdigest()
+
+    # Conserver uniquement les empreintes et le contexte temporaire.
     session["passkey_registration"] = {
         "challenge": options.challenge.hex(),
         "session_binding": session_binding.hex(),
         "user_id": user_id,
+        "iam_token_hash": empreinte_iam,
     }
 
     # Transmettre les options au navigateur.
@@ -324,14 +386,15 @@ def options_enregistrement_passkey_admin():
 # ============================================================
 
 
+
 @app.post("/admin/passkey/enregistrement/verifier")
 def verifier_enregistrement_passkey_admin():
     """Vérifie et enregistre une Passkey administrateur."""
 
-    if (
-        session.get("user_id") is None
-        or session.get("role") != "admin"
-    ):
+    utilisateur = obtenir_utilisateur_iam("admin")
+
+    if utilisateur is None:
+        session.pop("passkey_registration", None)
         return redirect(url_for("connexion_admin"))
 
     tentative = session.pop("passkey_registration", None)
@@ -339,8 +402,32 @@ def verifier_enregistrement_passkey_admin():
     if not isinstance(tentative, dict):
         return jsonify({"erreur": "Tentative Passkey absente."}), 400
 
-    if tentative.get("user_id") != session["user_id"]:
+    if tentative.get("user_id") != utilisateur["user_id"]:
         return jsonify({"erreur": "Tentative Passkey invalide."}), 400
+
+    # Vérifier la continuité de la session IAM.
+    jeton_iam = request.cookies.get("netatlas_iam")
+
+    if not jeton_iam:
+        return jsonify({"erreur": "Session IAM invalide."}), 400
+
+    empreinte_attendue = tentative.get("iam_token_hash")
+
+    if not isinstance(empreinte_attendue, str):
+        return jsonify({"erreur": "Tentative Passkey invalide."}), 400
+
+    try:
+        empreinte_actuelle = hashlib.sha256(
+            jeton_iam.encode("ascii")
+        ).hexdigest()
+    except UnicodeEncodeError:
+        return jsonify({"erreur": "Session IAM invalide."}), 400
+
+    if not hmac.compare_digest(
+        empreinte_attendue,
+        empreinte_actuelle,
+    ):
+        return jsonify({"erreur": "Session IAM différente."}), 400
 
     credential = request.get_json(silent=True)
 
@@ -362,7 +449,7 @@ def verifier_enregistrement_passkey_admin():
         resultat = finaliser_enregistrement_webauthn(
             challenge_hash=hashlib.sha256(challenge).digest(),
             session_binding_hash=hashlib.sha256(session_binding).digest(),
-            user_id=session["user_id"],
+            user_id=utilisateur["user_id"],
             credential_id=verification.credential_id,
             public_key=verification.credential_public_key,
             sign_count=verification.sign_count,
@@ -591,10 +678,47 @@ def verifier_authentification_passkey_web():
     if utilisateur is False:
         return jsonify({"erreur": "Authentification Passkey refusée."}), 403
 
+    ancien_jeton = request.cookies.get("netatlas_iam")
+
+    try:
+        ancienne_session = (
+            valider_session_iam(ancien_jeton)
+            if ancien_jeton
+            else None
+        )
+
+        if (
+            ancienne_session is not None
+            and ancienne_session["user_id"] == utilisateur["user_id"]
+        ):
+            try:
+                nouveau_jeton = renouveler_session_iam(
+                    utilisateur["user_id"],
+                    ancien_jeton=ancien_jeton,
+                )
+            except SessionIAMInvalide:
+                # La session a expiré ou a été révoquée
+                # entre sa validation et la rotation.
+                # La Passkey a déjà été vérifiée avec succès.
+                nouveau_jeton = creer_session_iam(
+                    utilisateur["user_id"]
+                )
+        else:
+            # Aucune session valide pour cet utilisateur.
+            # Une Passkey réussie autorise une nouvelle session.
+            nouveau_jeton = creer_session_iam(
+                utilisateur["user_id"]
+            )
+
+    except Exception:
+        app.logger.exception(
+            "Échec de création ou de rotation de la session IAM."
+        )
+        return jsonify(
+            {"erreur": "Création ou renouvellement de session impossible."}
+        ), 503
+
     session.clear()
-    session["user_id"] = utilisateur["user_id"]
-    session["nom"] = utilisateur["nom"]
-    session["role"] = utilisateur["role"]
 
     destination = (
         "espace_admin"
@@ -602,11 +726,25 @@ def verifier_authentification_passkey_web():
         else "espace_utilisateur"
     )
 
-    return jsonify({
-        "message": "Authentification Passkey réussie.",
-        "redirect": url_for(destination),
-    }), 200
+    reponse = jsonify(
+        {
+            "message": "Authentification Passkey réussie.",
+            "redirect": url_for(destination),
+        }
+    )
 
+    reponse.set_cookie(
+        "netatlas_iam",
+        nouveau_jeton,
+        httponly=True,
+        secure=os.getenv("NETATLAS_WEB_HTTPS") == "1",
+        samesite="Lax",
+        path="/",
+    )
+
+    reponse.headers["Cache-Control"] = "no-store"
+
+    return reponse, 200
 
 @app.get("/admin/passkey/amorcage")
 def page_amorcage_passkey_admin():
@@ -844,14 +982,35 @@ def espace_utilisateur():
         nom=session["nom"],
     )
 
-
 @app.post("/deconnexion")
 def deconnexion():
-    """Déconnecte l'utilisateur de sa session Flask."""
+    """Révoque la session IAM et déconnecte le navigateur."""
+
+    jeton = request.cookies.get("netatlas_iam")
+
+    if jeton:
+        try:
+            revoquer_session_iam(jeton)
+        except Exception:
+            app.logger.exception(
+                "Échec de révocation de la session IAM."
+            )
+            return jsonify(
+                {"erreur": "Déconnexion temporairement impossible."}
+            ), 503
 
     session.clear()
 
-    return redirect(url_for("accueil"))
+    reponse = redirect(url_for("accueil"))
+
+    reponse.delete_cookie(
+        "netatlas_iam",
+        path="/",
+    )
+
+    reponse.headers["Cache-Control"] = "no-store"
+
+    return reponse
 
 # ============================================================
 # CONSULTATION UTILISATEUR CONNECTÉ
