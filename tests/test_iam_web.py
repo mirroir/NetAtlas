@@ -1,5 +1,11 @@
 """Tests de sécurité de l'intégration IAM dans Flask."""
 
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
+
 from web.app import app
 
 
@@ -391,3 +397,195 @@ def test_deconnexion_supprime_cookie_iam(monkeypatch, csrf_data):
         assert reponse.status_code == 302
         assert client.get_cookie("netatlas_iam") is None
         assert reponse.headers["Cache-Control"] == "no-store"
+
+def test_utilisateur_refuse_ancienne_session_flask_sans_iam():
+    """Une ancienne session Flask seule ne donne plus accès à l'espace."""
+
+    with app.test_client() as client:
+        with client.session_transaction() as session:
+            session["user_id"] = 3
+            session["nom"] = "UtilisateurTest"
+            session["role"] = "utilisateur"
+
+        reponse = client.get("/utilisateur")
+
+    assert reponse.status_code == 302
+    assert "/connexion/utilisateur" in reponse.location
+
+
+def test_utilisateur_accepte_identite_iam_valide(monkeypatch):
+    """Une identité IAM utilisateur valide autorise l'espace."""
+
+    def simuler_validation(jeton):
+        assert jeton == "jeton_iam_test"
+        return {"user_id": 3, "nom": "UtilisateurTest"}
+
+    def simuler_role(user_id, role_nom):
+        assert user_id == 3
+        assert role_nom == "utilisateur"
+        return {
+            "user_id": 3,
+            "nom": "UtilisateurTest",
+            "role": "utilisateur",
+        }
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_validation,
+    )
+    monkeypatch.setattr(
+        "web.app.get_utilisateur_webauthn",
+        simuler_role,
+    )
+
+    with app.test_client() as client:
+        client.set_cookie("netatlas_iam", "jeton_iam_test")
+        reponse = client.get("/utilisateur")
+
+    assert reponse.status_code == 200
+    assert b"UtilisateurTest" in reponse.data
+
+
+def test_utilisateur_refuse_session_iam_revoquee(monkeypatch):
+    """Un jeton IAM révoqué ou expiré ne donne aucun accès."""
+
+    def simuler_validation(jeton):
+        assert jeton == "jeton_iam_invalide"
+
+    def interdire_verification_role(user_id, role_nom):
+        raise AssertionError(
+            "Aucun rôle ne doit être recherché après un rejet IAM."
+        )
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_validation,
+    )
+    monkeypatch.setattr(
+        "web.app.get_utilisateur_webauthn",
+        interdire_verification_role,
+    )
+
+    with app.test_client() as client:
+        client.set_cookie("netatlas_iam", "jeton_iam_invalide")
+        reponse = client.get("/utilisateur")
+
+    assert reponse.status_code == 302
+    assert "/connexion/utilisateur" in reponse.location
+
+def test_commentaire_utilise_identite_iam_et_non_flask(
+    monkeypatch,
+    csrf_data,
+):
+    """Le commentaire appartient à l'identité IAM authentifiée."""
+
+    from unittest.mock import patch
+
+    def simuler_validation(jeton):
+        assert jeton == "jeton_iam_test"
+        return {"user_id": 8, "nom": "UtilisateurIAM"}
+
+    def simuler_role(user_id, role_nom):
+        assert user_id == 8
+        assert role_nom == "utilisateur"
+        return {
+            "user_id": 8,
+            "nom": "UtilisateurIAM",
+            "role": "utilisateur",
+        }
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_validation,
+    )
+    monkeypatch.setattr(
+        "web.app.get_utilisateur_webauthn",
+        simuler_role,
+    )
+
+    with (
+        patch(
+            "web.app.get_place_details",
+            return_value={"id": 1, "name": "LieuTest"},
+        ),
+        patch("web.app.ajouter_avis") as ajouter_avis,
+        app.test_client() as client,
+    ):
+        with client.session_transaction() as session:
+            session["user_id"] = 3
+            session["nom"] = "AncienUtilisateur"
+            session["role"] = "utilisateur"
+
+        donnees_csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "jeton_iam_test")
+
+        reponse = client.post(
+            "/lieu/1/utilisateur",
+            data={
+                "action": "commentaire",
+                "commentaire": "Commentaire IAM sécurisé",
+                "csrf_token": donnees_csrf["csrf_token"],
+            },
+        )
+
+    assert reponse.status_code == 302
+    ajouter_avis.assert_called_once_with(
+        1,
+        8,
+        "Commentaire IAM sécurisé",
+    )
+
+
+def test_reaction_utilise_identite_iam_et_non_flask(
+    monkeypatch,
+    csrf_data,
+):
+    """La réaction appartient à l'identité IAM authentifiée."""
+
+    from unittest.mock import patch
+
+    def simuler_validation(jeton):
+        assert jeton == "jeton_iam_test"
+        return {"user_id": 8, "nom": "UtilisateurIAM"}
+
+    def simuler_role(user_id, role_nom):
+        assert user_id == 8
+        assert role_nom == "utilisateur"
+        return {
+            "user_id": 8,
+            "nom": "UtilisateurIAM",
+            "role": "utilisateur",
+        }
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_validation,
+    )
+    monkeypatch.setattr(
+        "web.app.get_utilisateur_webauthn",
+        simuler_role,
+    )
+
+    with (
+        patch("web.app.enregistrer_reaction") as enregistrer,
+        app.test_client() as client,
+    ):
+        with client.session_transaction() as session:
+            session["user_id"] = 3
+            session["nom"] = "AncienUtilisateur"
+            session["role"] = "utilisateur"
+
+        donnees_csrf = csrf_data(client)
+        client.set_cookie("netatlas_iam", "jeton_iam_test")
+
+        reponse = client.post(
+            "/lieu/1/reaction",
+            data={
+                "reaction": "1",
+                "source": "recherche",
+                "csrf_token": donnees_csrf["csrf_token"],
+            },
+        )
+
+    assert reponse.status_code == 302
+    enregistrer.assert_called_once_with(1, 8, 1)

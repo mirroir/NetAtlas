@@ -169,13 +169,10 @@ def obtenir_utilisateur_iam(role_requis):
 
     return utilisateur
 
-
 def est_utilisateur_connecte():
-    return (
-        session.get("user_id") is not None
-        and session.get("role") == "utilisateur"
-    )
+    """Vérifie une identité utilisateur depuis la session IAM."""
 
+    return obtenir_utilisateur_iam("utilisateur") is not None
 
 # ============================================================
 # ACCUEIL
@@ -249,36 +246,28 @@ def creer_profil():
 # CONNEXION UTILISATEUR - PASSKEY UNIQUEMENT
 # ============================================================
 
-
 @app.get("/connexion/utilisateur")
 def connexion_utilisateur():
-    """Affiche la connexion utilisateur sans authentification PIN."""
+    """Affiche la connexion ou redirige une identité IAM autorisée."""
 
-    if (
-        session.get("user_id") is not None
-        and session.get("role") == "utilisateur"
-    ):
+    if obtenir_utilisateur_iam("utilisateur") is not None:
         return redirect(url_for("espace_utilisateur"))
 
     return render_template("connexion_utilisateur.html")
+
 
 # ============================================================
 # CONNEXION ADMINISTRATEUR - PASSKEY UNIQUEMENT
 # ============================================================
 
-
 @app.get("/connexion/admin")
 def connexion_admin():
-    """Affiche la connexion administrateur sans authentification PIN."""
+    """Affiche la connexion ou redirige un administrateur IAM."""
 
-    if (
-        session.get("user_id") is not None
-        and session.get("role") == "admin"
-    ):
-        return redirect(url_for("tableau_de_bord_admin"))
+    if obtenir_utilisateur_iam("admin") is not None:
+        return redirect(url_for("espace_admin"))
 
     return render_template("connexion_admin.html")
-
 
 # ============================================================
 # ESPACE ADMINISTRATEUR
@@ -971,15 +960,18 @@ def verifier_recuperation_passkey_admin_web():
 # ESPACE UTILISATEUR
 # ============================================================
 
-
 @app.route("/utilisateur")
 def espace_utilisateur():
-    if not est_utilisateur_connecte():
+    """Affiche l'espace utilisateur après validation IAM."""
+
+    utilisateur = obtenir_utilisateur_iam("utilisateur")
+
+    if utilisateur is None:
         return redirect(url_for("connexion_utilisateur"))
 
     return render_template(
         "espace_utilisateur.html",
-        nom=session["nom"],
+        nom=utilisateur["nom"],
     )
 
 @app.post("/deconnexion")
@@ -1016,10 +1008,11 @@ def deconnexion():
 # CONSULTATION UTILISATEUR CONNECTÉ
 # ============================================================
 
-
 @app.route("/utilisateur/consultation")
 def consultation_utilisateur():
-    if not est_utilisateur_connecte():
+    """Autorise la consultation depuis une identité IAM valide."""
+
+    if obtenir_utilisateur_iam("utilisateur") is None:
         return redirect(url_for("connexion_utilisateur"))
 
     return redirect(
@@ -1163,7 +1156,14 @@ def recherche_globale_web(origine):
 @app.route("/lieu/<int:place_id>/<origine>", methods=["GET", "POST"])
 def detail_lieu(place_id, origine):
     source = request.args.get("source")
-    if origine == "utilisateur" and not est_utilisateur_connecte():
+
+    utilisateur = (
+        obtenir_utilisateur_iam("utilisateur")
+        if origine == "utilisateur"
+        else None
+    )
+
+    if origine == "utilisateur" and utilisateur is None:
         return redirect(url_for("connexion_utilisateur"))
 
     erreur_commentaire = None
@@ -1179,7 +1179,7 @@ def detail_lieu(place_id, origine):
         )
 
     if request.method == "POST":
-        if origine != "utilisateur" or not est_utilisateur_connecte():
+        if origine != "utilisateur" or utilisateur is None:
             return redirect(url_for("connexion_utilisateur"))
 
         action = request.form.get("action")
@@ -1190,7 +1190,7 @@ def detail_lieu(place_id, origine):
             try:
                 ajouter_avis(
                     place_id,
-                    session["user_id"],
+                    utilisateur["user_id"],
                     commentaire,
                 )
             except ValueError as exc:
@@ -1213,12 +1213,11 @@ def detail_lieu(place_id, origine):
 
     reaction_utilisateur = None
 
-    if origine == "utilisateur" and session.get("user_id"):
+    if utilisateur is not None:
        reaction_utilisateur = get_user_reaction(
          place_id,
-         session["user_id"],
+         utilisateur["user_id"],
        )
-
 
     return render_template(
         "detail_lieu.html",
@@ -1234,20 +1233,23 @@ def detail_lieu(place_id, origine):
         source=source,
     )
 
+
 @app.post("/lieu/<int:place_id>/reaction")
 def reaction_lieu(place_id):
+    """Enregistre une réaction pour l'utilisateur IAM authentifié."""
+
     source = request.form.get("source")
 
-    if not est_utilisateur_connecte():
-        return redirect(url_for("connexion_utilisateur"))
+    utilisateur = obtenir_utilisateur_iam("utilisateur")
 
-    user_id = session["user_id"]
+    if utilisateur is None:
+        return redirect(url_for("connexion_utilisateur"))
 
     reaction = request.form.get("reaction", type=int)
 
     enregistrer_reaction(
         place_id,
-        user_id,
+        utilisateur["user_id"],
         reaction,
     )
 
@@ -1259,7 +1261,6 @@ def reaction_lieu(place_id):
             source=source,
         )
     )
-
 
 # ============================================================
 # LANCEMENT LOCAL

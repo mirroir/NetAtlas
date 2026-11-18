@@ -95,8 +95,9 @@ def test_administrateur_refuse_espace_utilisateur():
     assert reponse.status_code == 302
     assert "/connexion/utilisateur" in reponse.location
 
+def test_utilisateur_ancienne_session_flask_refusee():
+    """La session Flask seule ne suffit plus pour accéder à l'espace."""
 
-def test_utilisateur_connecte_acces_espace():
     with app.test_client() as client:
         with client.session_transaction() as session:
             session["user_id"] = 3
@@ -105,8 +106,8 @@ def test_utilisateur_connecte_acces_espace():
 
         reponse = client.get("/utilisateur")
 
-    assert reponse.status_code == 200
-
+    assert reponse.status_code == 302
+    assert "/connexion/utilisateur" in reponse.location
 
 def test_admin_refuse_recherche_utilisateur():
     with app.test_client() as client:
@@ -122,16 +123,36 @@ def test_admin_refuse_recherche_utilisateur():
 
 
 def test_utilisateur_autorise_recherche_globale():
-    with app.test_client() as client:
-        with client.session_transaction() as session:
-            session["user_id"] = 3
-            session["nom"] = "UtilisateurTest"
-            session["role"] = "utilisateur"
+    """Une session IAM utilisateur valide autorise la recherche."""
+
+    jeton = "a" * 64
+
+    with (
+        patch(
+            "web.app.valider_session_iam",
+            return_value={
+                "user_id": 3,
+                "nom": "UtilisateurTest",
+            },
+        ) as valider,
+        patch(
+            "web.app.get_utilisateur_webauthn",
+            return_value={
+                "user_id": 3,
+                "nom": "UtilisateurTest",
+                "role": "utilisateur",
+            },
+        ) as identifier,
+        app.test_client() as client,
+    ):
+        client.set_cookie("netatlas_iam", jeton)
 
         reponse = client.get("/recherche/globale/utilisateur")
 
     assert reponse.status_code == 200
 
+    valider.assert_called_once_with(jeton)
+    identifier.assert_called_once_with(3, "utilisateur")
 
 def test_admin_refuse_ajout_commentaire(csrf_data):
     with (
