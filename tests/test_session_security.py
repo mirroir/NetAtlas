@@ -107,3 +107,18 @@ def test_connexion_utilisateur_pin_refuse(csrf_data):
 
     assert reponse.status_code == 405
 
+def test_creation_profil_pin_supprimee():
+    """L'ancienne création de profil par PIN doit rester inaccessible."""
+
+    with app.test_client() as client:
+        reponse_get = client.get("/profil/creer")
+        reponse_post = client.post(
+            "/profil/creer",
+            data={
+                "nom": "AncienProfil",
+                "pin": "2580",
+            },
+        )
+
+    assert reponse_get.status_code == 404
+    assert reponse_post.status_code == 404

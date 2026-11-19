@@ -44,7 +44,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from database import (
     ajouter_avis,
-    creer_utilisateur,
     enregistrer_challenge_webauthn,
     enregistrer_reaction,
     finaliser_amorcage_passkey_admin,
@@ -235,39 +234,6 @@ def consultation_temporaire():
         "recherche_globale_web",
         origine="temporaire",
       )
-    )
-
-
-# ============================================================
-# CRÉATION DE PROFIL
-# ============================================================
-
-
-@app.route("/profil/creer", methods=["GET", "POST"])
-def creer_profil():
-    message = None
-    erreur = None
-
-    if request.method == "POST":
-        nom = request.form["nom"]
-        pin = request.form["pin"]
-
-        try:
-            creer_utilisateur(nom, pin)
-
-        except ValueError as exc:
-            erreur = str(exc)
-
-        except UniqueViolation:
-            erreur = "Ce nom de profil existe déjà."
-
-        else:
-            message = "Profil créé avec succès."
-
-    return render_template(
-        "creer_profil.html",
-        message=message,
-        erreur=erreur,
     )
 
 

@@ -33,22 +33,14 @@ except ImportError:
 
 
 def afficher_menu_connexion():
+    """Affiche uniquement les accès publics disponibles dans le CLI."""
     print("\n" + "=" * 45)
     print("      BIENVENUE SUR NETATLAS")
     print("=" * 45)
     print()
-    print("1 - Connexion Administrateur")
-    print("2 - Connexion Utilisateur")
-    print("3 - Créer un profil")
-    print("4 - Accès temporaire")
+    print("1 - Recherche publique")
     print("0 - Quitter")
     print()
-
-
-
-
-
-
 
 
 def afficher_recherche_globale(user_id=None):
@@ -414,35 +406,5 @@ def menu_mes_commentaires(user_id):
 
         else:
             print("\nChoix invalide.")
-
-
-
-def afficher_menu():
-    print("=" * 45)
-    print("            NetAtlas -> Ver. 1")
-    print("=" * 45)
-    print()
-
-    print("1 - Recherche globale")
-    print("2 - Mes commentaires")
-    print("3 - Déconnexion")
-    print()
-
-
-def afficher_menu_temporaire():
-    print("=" * 45)
-    print("        NetAtlas -> Accès temporaire")
-    print("=" * 45)
-    print()
-    print(
-        "NOTE : pour ajouter des tags ou des commentaires, "
-        "créez un profil depuis le menu d'accueil."
-    )
-    print()
-
-    print("1 - Recherche globale")
-    print("2 - Retour au menu principal")
-    print()
-
 
 

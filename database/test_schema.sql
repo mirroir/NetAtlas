@@ -739,10 +739,8 @@ CREATE TABLE public.users (
     id integer NOT NULL,
     nom character varying(100),
     email character varying(150),
-    date_creation timestamp without time zone DEFAULT CURRENT_TIMESTAMP, 
-    pin_hash text
+    date_creation timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
-
 
 --
 -- Name: place_reactions; Type: TABLE; Schema: public; Owner: -

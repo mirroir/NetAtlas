@@ -7,16 +7,18 @@ import menu
 
 
 def test_afficher_menu_connexion(capsys):
-    menu.afficher_menu_connexion()
+    from menu import afficher_menu_connexion
+
+    afficher_menu_connexion()
 
     sortie = capsys.readouterr().out
 
     assert "BIENVENUE SUR NETATLAS" in sortie
-    assert "1 - Connexion Administrateur" in sortie
-    assert "2 - Connexion Utilisateur" in sortie
-    assert "3 - Créer un profil" in sortie
-    assert "4 - Accès temporaire" in sortie
+    assert "1 - Recherche publique" in sortie
     assert "0 - Quitter" in sortie
+    assert "Connexion Administrateur" not in sortie
+    assert "Connexion Utilisateur" not in sortie
+    assert "Créer un profil" not in sortie
 
 
 def test_afficher_recherche_globale_vide(monkeypatch, capsys):
@@ -120,21 +122,6 @@ def test_afficher_place_avec_coordonnees(capsys):
     assert "Marché de Saint-Pierre" in sortie
     assert "-21.33922" in sortie
     assert "55.45883" in sortie
-
-
-def test_afficher_menu_temporaire(capsys):
-    menu.afficher_menu_temporaire()
-
-    sortie = capsys.readouterr().out
-
-    assert "NetAtlas -> Accès temporaire" in sortie
-    assert "NOTE : pour ajouter des tags ou des commentaires" in sortie
-    assert "créez un profil depuis le menu d'accueil." in sortie
-    assert "1 - Recherche globale" in sortie
-    assert "2 - Retour au menu principal" in sortie
-    assert "Mes Commentaires" not in sortie
-    assert "Déconnexion" not in sortie
-
 
 
 def test_recherche_globale_masque_resultat_moins_pertinent(monkeypatch, capsys):

@@ -2,26 +2,9 @@ import os
 import re
 
 import psycopg
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
 from dotenv import load_dotenv
 
-password_hasher = PasswordHasher()
-
 load_dotenv("/home/dymoon/lab/NetAtlas/config/.env")
-
-
-def hash_pin(pin):
-    return password_hasher.hash(pin)
-
-def valider_pin(pin):
-    return pin.isdigit() and 4 <= len(pin) <= 6
-
-def verifier_pin(pin, pin_hash):
-    try:
-        return password_hasher.verify(pin_hash, pin)
-    except VerifyMismatchError:
-        return False
 
 def connexion_db():
     environnement = os.getenv("NETATLAS_ENV")
@@ -43,87 +26,6 @@ def connexion_db():
     )
 
     return connexion
-
-
-def creer_utilisateur(nom, pin, role_nom="utilisateur"):
-    if not nom.strip():
-        raise ValueError("Le nom de profil ne peut pas être vide.")
-
-    if not valider_pin(pin):
-        raise ValueError("Le PIN doit contenir entre 4 et 6 chiffres.")
-
-    pin_hash = hash_pin(pin)
-    connexion = connexion_db()
-
-    try:
-        with connexion.cursor() as curseur:
-            curseur.execute(
-                """
-                INSERT INTO users (nom, pin_hash)
-                VALUES (%s, %s)
-                RETURNING id;
-                """,
-                (nom.strip(), pin_hash),
-            )
-
-            user_id = curseur.fetchone()[0]
-
-            curseur.execute(
-                """
-                INSERT INTO role_user (user_id, role_id)
-                SELECT %s, id
-                FROM roles
-                WHERE nom = %s;
-                """,
-                (user_id, role_nom),
-            )
-
-        connexion.commit()
-        return user_id
-
-    except Exception:
-        connexion.rollback()
-        raise
-
-    finally:
-        connexion.close()
-
-
-def authentifier_utilisateur(nom, pin, role_nom):
-    connexion = connexion_db()
-
-    try:
-        with connexion.cursor() as curseur:
-            curseur.execute(
-                """
-                SELECT u.id, u.nom, u.pin_hash
-                FROM users u
-                JOIN role_user ru ON ru.user_id = u.id
-                JOIN roles r ON r.id = ru.role_id
-                WHERE u.nom = %s
-                  AND r.nom = %s;
-                """,
-                (nom.strip(), role_nom),
-            )
-
-            resultat = curseur.fetchone()
-
-        if resultat is None:
-            return None
-
-        user_id, nom_utilisateur, pin_hash = resultat
-
-        if not verifier_pin(pin, pin_hash):
-            return None
-
-        return {
-            "user_id": user_id,
-            "nom": nom_utilisateur,
-            "role": role_nom,
-        }
-
-    finally:
-        connexion.close()
 
 
 def get_utilisateur_webauthn(user_id, role_nom):
