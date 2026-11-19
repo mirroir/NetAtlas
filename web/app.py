@@ -15,6 +15,8 @@ from flask import (
     url_for,
 )
 from flask_wtf.csrf import CSRFProtect
+from psycopg import Error as PsycopgError
+from psycopg import OperationalError
 from psycopg.errors import UniqueViolation
 from webauthn import options_to_json
 from webauthn.helpers import base64url_to_bytes
@@ -133,6 +135,33 @@ csrf = CSRFProtect()
 
 app.config["WTF_CSRF_CHECK_DEFAULT"] = True
 csrf.init_app(app)
+
+@app.errorhandler(PsycopgError)
+def gerer_erreur_postgresql(erreur):
+    """Distingue les erreurs opérationnelles des erreurs SQL."""
+
+    indisponibilite = isinstance(erreur, OperationalError)
+
+    statut = 503 if indisponibilite else 500
+
+    app.logger.error(
+        "NETATLAS PostgreSQL : %s (HTTP %s)",
+        type(erreur).__name__,
+        statut,
+    )
+
+    message = (
+        "Service temporairement indisponible."
+        if indisponibilite
+        else "Erreur interne du service."
+    )
+
+    reponse = jsonify({"erreur": message})
+    reponse.status_code = statut
+    reponse.headers["Cache-Control"] = "no-store"
+
+    return reponse
+
 
 def obtenir_utilisateur_iam(role_requis):
     """Retourne une identité autorisée depuis une session IAM valide."""

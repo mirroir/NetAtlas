@@ -589,3 +589,115 @@ def test_reaction_utilise_identite_iam_et_non_flask(
 
     assert reponse.status_code == 302
     enregistrer.assert_called_once_with(1, 8, 1)
+
+def test_iam_erreur_postgresql_validation_retourne_503(monkeypatch):
+    """Une panne PostgreSQL pendant la validation IAM refuse l'accès."""
+
+    import psycopg
+
+    def simuler_panne(jeton):
+        raise psycopg.OperationalError("Connexion PostgreSQL impossible")
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_panne,
+    )
+
+    with app.test_client() as client:
+        client.set_cookie("netatlas_iam", "a" * 64)
+        reponse = client.get("/utilisateur")
+
+    assert reponse.status_code == 503
+    assert reponse.get_json() == {
+        "erreur": "Service temporairement indisponible.",
+    }
+    assert reponse.headers["Cache-Control"] == "no-store"
+    assert b"Connexion PostgreSQL impossible" not in reponse.data
+
+
+def test_iam_erreur_postgresql_role_retourne_503(monkeypatch):
+    """Une panne lors de la vérification du rôle refuse l'accès."""
+
+    import psycopg
+
+    def simuler_validation(jeton):
+        assert jeton == "a" * 64
+        return {"user_id": 3, "nom": "UtilisateurTest"}
+
+    def simuler_panne_role(user_id, role_nom):
+        assert user_id == 3
+        assert role_nom == "utilisateur"
+        raise psycopg.OperationalError("Lecture des rôles impossible")
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_validation,
+    )
+    monkeypatch.setattr(
+        "web.app.get_utilisateur_webauthn",
+        simuler_panne_role,
+    )
+
+    with app.test_client() as client:
+        client.set_cookie("netatlas_iam", "a" * 64)
+        reponse = client.get("/utilisateur")
+
+    assert reponse.status_code == 503
+    assert reponse.get_json() == {
+        "erreur": "Service temporairement indisponible.",
+    }
+    assert reponse.headers["Cache-Control"] == "no-store"
+    assert b"Lecture des r" not in reponse.data
+
+
+def test_iam_erreur_programmation_non_transformee_en_503(monkeypatch):
+    """Une erreur Python ordinaire n'est pas assimilée à une panne SQL."""
+
+    import pytest
+
+    def simuler_erreur(jeton):
+        raise RuntimeError("Erreur de programmation simulée")
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_erreur,
+    )
+
+    monkeypatch.setitem(app.config, "TESTING", True)
+
+    with app.test_client() as client:
+        client.set_cookie("netatlas_iam", "a" * 64)
+
+        with pytest.raises(
+            RuntimeError,
+            match="Erreur de programmation simulée",
+        ):
+            client.get("/utilisateur")
+
+
+def test_iam_erreur_sql_non_operationnelle_retourne_500(monkeypatch):
+    """Une erreur SQL non opérationnelle ne doit pas produire HTTP 503."""
+
+    import psycopg
+
+    def simuler_erreur_sql(jeton):
+        assert jeton == "a" * 64
+        raise psycopg.errors.SyntaxError(
+            "Erreur SQL simulée : syntaxe invalide"
+        )
+
+    monkeypatch.setattr(
+        "web.app.valider_session_iam",
+        simuler_erreur_sql,
+    )
+
+    with app.test_client() as client:
+        client.set_cookie("netatlas_iam", "a" * 64)
+        reponse = client.get("/utilisateur")
+
+    assert reponse.status_code == 500
+    assert reponse.get_json() == {
+        "erreur": "Erreur interne du service.",
+    }
+    assert reponse.headers["Cache-Control"] == "no-store"
+    assert b"syntaxe invalide" not in reponse.data
