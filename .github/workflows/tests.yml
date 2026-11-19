@@ -241,15 +241,36 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -h localhost -U postgres -d netatlas_test <<'SQL'
           DO $$
           BEGIN
-              -- IAM : interdire la suppression directe des sessions.
+              -- IAM : vérifier les droits applicatifs nécessaires.
+              IF NOT has_table_privilege(
+                  'netatlas_ci_user',
+                  'public.iam_sessions',
+                  'SELECT,INSERT,UPDATE'
+              ) THEN
+                  RAISE EXCEPTION
+                      'Permissions IAM insuffisantes pour le compte CI';
+              END IF;
+
+              -- IAM : interdire les suppressions directes.
               IF has_table_privilege(
                   'netatlas_ci_user',
                   'public.iam_sessions',
-                  'DELETE'
+                  'DELETE,TRUNCATE'
               ) THEN
                   RAISE EXCEPTION
                       'Suppression des sessions IAM autorisee au compte CI';
               END IF;
+
+              -- IAM : vérifier l'utilisation de la séquence.
+              IF NOT has_sequence_privilege(
+                  'netatlas_ci_user',
+                  'public.iam_sessions_id_seq',
+                  'USAGE'
+              ) THEN
+                  RAISE EXCEPTION
+                      'Sequence IAM inaccessible au compte CI';
+              END IF;
+
               -- Migration 018 : interdire la suppression des compteurs
               -- Passkey, y compris par heritage de roles.
               IF has_table_privilege(
