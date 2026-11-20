@@ -90,3 +90,43 @@ def test_decouvrir_migrations_ignore_permissions_test(tmp_path):
 
     assert len(migrations) == 1
     assert migrations[0].nom == "002_create_webauthn_challenges.sql"
+
+from unittest.mock import MagicMock
+
+from migration_manager import lire_migrations_enregistrees
+
+
+def test_lire_migrations_enregistrees():
+    connexion = MagicMock()
+    curseur = connexion.cursor.return_value.__enter__.return_value
+
+    curseur.fetchall.return_value = [
+        (
+            "022_create_schema_migrations",
+            "database/022_create_schema_migrations.sql",
+            "a" * 64,
+            "executed",
+            None,
+        )
+    ]
+
+    resultat = lire_migrations_enregistrees(connexion)
+
+    assert len(resultat) == 1
+    assert resultat[0]["migration_key"] == (
+        "022_create_schema_migrations"
+    )
+    assert resultat[0]["checksum_sha256"] == "a" * 64
+
+    requete = curseur.execute.call_args.args[0]
+    assert "FROM public.schema_migrations" in requete
+    assert "ORDER BY migration_key" in requete
+
+
+def test_lire_migrations_enregistrees_registre_vide():
+    connexion = MagicMock()
+    curseur = connexion.cursor.return_value.__enter__.return_value
+
+    curseur.fetchall.return_value = []
+
+    assert lire_migrations_enregistrees(connexion) == []

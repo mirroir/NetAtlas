@@ -69,3 +69,33 @@ def decouvrir_migrations(repertoire: Path) -> list[Migration]:
         migrations,
         key=lambda migration: migration.numero,
     )
+
+def lire_migrations_enregistrees(connexion):
+    """Lit le registre des migrations sans le modifier."""
+
+    with connexion.cursor() as curseur:
+        curseur.execute(
+            """
+            SELECT
+                migration_key,
+                file_path,
+                checksum_sha256,
+                application_mode,
+                applied_at
+            FROM public.schema_migrations
+            ORDER BY migration_key
+            """
+        )
+
+        lignes = curseur.fetchall()
+
+    return [
+        {
+            "migration_key": ligne[0],
+            "file_path": ligne[1],
+            "checksum_sha256": ligne[2],
+            "application_mode": ligne[3],
+            "applied_at": ligne[4],
+        }
+        for ligne in lignes
+    ]
