@@ -99,3 +99,133 @@ def lire_migrations_enregistrees(connexion):
         }
         for ligne in lignes
     ]
+
+
+def comparer_migrations(migrations, enregistrements):
+    """Compare les migrations SQL avec leur historique enregistré."""
+
+    fichiers = {}
+    numeros_vus = set()
+
+    for migration in migrations:
+        correspondance = (
+            MIGRATION_PATTERN.fullmatch(migration.nom)
+            if isinstance(migration.nom, str)
+            else None
+        )
+
+        if correspondance is None:
+            raise ValueError(
+                f"Nom de migration invalide : {migration.nom}"
+            )
+
+        numero_attendu = int(correspondance.group(1))
+
+        if (
+            type(migration.numero) is not int
+            or migration.numero != numero_attendu
+        ):
+            raise ValueError(
+                f"Numéro de migration incohérent : {migration.nom}"
+            )
+
+        checksum = migration.checksum_sha256
+
+        if not isinstance(checksum, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", checksum
+        ):
+            raise ValueError(
+                f"Empreinte SHA-256 de migration invalide : {migration.nom}"
+            )
+
+        cle = migration.nom.removesuffix(".sql")
+
+        if cle in fichiers:
+            raise ValueError(
+                f"Migration présente en double : {cle}"
+            )
+
+        if migration.numero in numeros_vus:
+            raise ValueError(
+                f"Numéro de migration dupliqué : {migration.numero:03d}"
+            )
+
+        numeros_vus.add(migration.numero)
+        fichiers[cle] = migration
+
+    historiques = {}
+
+    for ligne in enregistrements:
+        cle = ligne.get("migration_key")
+        chemin = ligne.get("file_path")
+        mode = ligne.get("application_mode")
+
+        if not isinstance(cle, str) or not MIGRATION_PATTERN.fullmatch(
+            f"{cle}.sql"
+        ):
+            raise ValueError(
+                f"Identifiant de migration invalide : {cle}"
+            )
+
+        chemin_attendu = f"database/{cle}.sql"
+
+        if chemin != chemin_attendu:
+            raise ValueError(
+                f"Chemin de migration invalide : {cle}"
+            )
+
+        if not isinstance(mode, str) or mode not in {
+            "executed",
+            "baseline",
+        }:
+            raise ValueError(
+                f"Mode de migration invalide : {cle}"
+            )
+
+        checksum = ligne.get("checksum_sha256")
+
+        if not isinstance(checksum, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", checksum
+        ):
+            raise ValueError(
+                f"Empreinte SHA-256 invalide : {cle}"
+            )
+
+        if cle in historiques:
+            raise ValueError(
+                f"Migration enregistrée en double : {cle}"
+            )
+
+        historiques[cle] = ligne
+
+    resultats = []
+
+    for cle, migration in fichiers.items():
+        historique = historiques.get(cle)
+
+        if historique is None:
+            statut = "non_enregistree"
+        elif historique["checksum_sha256"] != migration.checksum_sha256:
+            statut = "integrite_invalide"
+        else:
+            statut = "conforme"
+
+        resultats.append(
+            {
+                "migration_key": cle,
+                "statut": statut,
+            }
+        )
+
+    for cle in historiques.keys() - fichiers.keys():
+        resultats.append(
+            {
+                "migration_key": cle,
+                "statut": "inconnue",
+            }
+        )
+
+    return sorted(
+        resultats,
+        key=lambda resultat: resultat["migration_key"],
+    )
