@@ -1,7 +1,7 @@
 # Environnement Python
 .venv/
 venv/
-_pycache_/
+__pycache__/
 *.pyc
 .pytest_cache/
 
@@ -27,12 +27,16 @@ netatlas_test_seed.sql
 # IDE
 .vscode/
 .idea/
-docs/info_commande/info_txt
 
 # Notes et fichiers locaux
 NETATLAS.txt
 docs/connexion_Python_Postgres.py
 docs/info_commande/info_txt
+
+# Documentation interne - audit et securite
+/docs/audit/audit_migrations_postgresql.md
+/docs/audit/registre_ameliorations.md
+/docs/audit/procedure_baseline.md
 
 # Coverage pytest
 .coverage
